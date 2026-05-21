@@ -1,0 +1,1963 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MEW G-code Generator</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f8;
+      --panel: #ffffff;
+      --ink: #17202a;
+      --muted: #64717f;
+      --line: #d8dee6;
+      --accent: #146c94;
+      --accent-dark: #0f536f;
+      --warn: #9a5b00;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 28px 0;
+    }
+
+    header {
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 28px;
+      line-height: 1.15;
+      font-weight: 720;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(17, 24, 39, 0.05);
+    }
+
+    .controls {
+      padding: 18px;
+    }
+
+    .preview-panel {
+      position: sticky;
+      top: 16px;
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+    }
+
+    .control-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-weight: 650;
+    }
+
+    label span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 560;
+    }
+
+    output {
+      color: var(--accent);
+      font-weight: 760;
+    }
+
+    input,
+    select {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 8px 10px;
+      color: var(--ink);
+      background: #fff;
+      font: inherit;
+    }
+
+    input:focus,
+    select:focus {
+      outline: 2px solid rgba(20, 108, 148, 0.2);
+      border-color: var(--accent);
+    }
+
+    .section-title {
+      margin: 6px 0 -4px;
+      padding-top: 6px;
+      border-top: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 760;
+      text-transform: uppercase;
+    }
+
+    .pattern-fields[hidden] {
+      display: none;
+    }
+
+    .diagonal-only[hidden] {
+      display: none;
+    }
+
+    .regular-only[hidden] {
+      display: none;
+    }
+
+    .check-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 650;
+    }
+
+    .check-label input {
+      width: 18px;
+      min-height: 18px;
+      margin: 0;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    button,
+    .download {
+      min-height: 40px;
+      border: 0;
+      border-radius: 6px;
+      padding: 9px 13px;
+      font: inherit;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    button {
+      background: #e8edf2;
+      color: var(--ink);
+    }
+
+    .download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .download:hover {
+      background: var(--accent-dark);
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      overflow: hidden;
+      border-bottom: 1px solid var(--line);
+      background: var(--line);
+      border-radius: 8px 8px 0 0;
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 12px;
+      background: var(--panel);
+    }
+
+    .stat strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .stat span {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .preview-wrap {
+      padding: 16px;
+    }
+
+    .scrub {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .scrub output {
+      min-width: 92px;
+      text-align: right;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 440px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .gcode-viewer {
+      position: relative;
+      margin-top: 16px;
+    }
+
+    .speed-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 1;
+      max-width: calc(100% - 16px);
+      border: 1px solid rgba(20, 108, 148, 0.28);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: var(--accent-dark);
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+      font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      pointer-events: none;
+    }
+
+    .speed-badge[hidden] {
+      display: none;
+    }
+
+    textarea {
+      display: block;
+      width: 100%;
+      height: 300px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 34px 12px 12px;
+      resize: vertical;
+      color: #1f2933;
+      background: #fff;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .warning {
+      display: none;
+      margin-top: 12px;
+      color: var(--warn);
+      font-weight: 650;
+    }
+
+    .warning.visible {
+      display: block;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        width: min(100vw - 20px, 720px);
+        padding: 18px 0;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-panel {
+        position: static;
+        max-height: none;
+        overflow: visible;
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      canvas {
+        height: 320px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>MEW G-code Generator</h1>
+      <p class="subtitle">Generates editable figure-8, scaffold, connected-circle, and sinusoidal toolpaths with live preview, validation, stats, and downloadable G-code.</p>
+    </header>
+
+    <div class="layout">
+      <section class="panel controls" aria-label="Generator settings">
+        <div class="control-grid">
+          <label>
+            Pattern
+            <span>Choose the geometry generator.</span>
+            <select id="pattern">
+              <option value="figure8">Single-crossing figure 8</option>
+              <option value="scaffold">Square scaffold</option>
+              <option value="diagonalScaffold">Diagonal square scaffold</option>
+              <option value="circlePath">Connected circles on path</option>
+              <option value="sine">Sinusoidal curves</option>
+              <option value="archimedes">Archimedes spiral</option>
+            </select>
+          </label>
+
+          <div class="pattern-fields" data-pattern-fields="figure8">
+            <div class="control-grid">
+              <label>
+                Lobe diameter, mm
+                <span>Default 10 mm, matching 5 mm radius lobes.</span>
+                <input id="figDiameter" type="number" min="0.1" step="0.1" value="10">
+              </label>
+
+              <label>
+                Crossing angle, degrees
+                <span>Used as a reference; custom height controls final Y span.</span>
+                <input id="figAngle" type="number" min="5" max="175" step="1" value="90">
+              </label>
+
+              <label>
+                Figure-8 height, mm
+                <span>Total Y span of each 8 before axis mapping.</span>
+                <input id="figHeight" type="number" min="0.1" step="0.1" value="10">
+              </label>
+
+              <label>
+                Shift right per repetition, mm
+                <span>Default 0.5 mm.</span>
+                <input id="figShift" type="number" min="0.001" step="0.001" value="0.5">
+              </label>
+
+              <label>
+                Max total width, mm
+                <span>Repetition count is calculated from this width.</span>
+                <input id="figMaxWidth" type="number" min="1" step="0.1" value="50">
+              </label>
+
+              <label>
+                Segments per 8
+                <span>Higher values are smoother and produce larger files.</span>
+                <input id="figSegments" type="number" min="24" max="2000" step="1" value="240">
+              </label>
+            </div>
+          </div>
+
+          <div class="pattern-fields" data-pattern-fields="scaffold" hidden>
+            <div class="control-grid">
+              <div class="section-title">Print Area</div>
+              <label>
+                Total area width, mm
+                <span>Validation limit for scaffold grid width.</span>
+                <input id="scTotalWidth" type="number" min="1" step="0.1" value="50">
+              </label>
+
+              <label>
+                Total area depth, mm
+                <span>Validation limit for scaffold grid depth.</span>
+                <input id="scTotalDepth" type="number" min="1" step="0.1" value="50">
+              </label>
+
+              <div class="section-title">Scaffold Grid</div>
+              <label>
+                Columns
+                <span>Number of scaffolds in X.</span>
+                <input id="scCols" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label>
+                Rows
+                <span>Number of scaffolds in Y.</span>
+                <input id="scRows" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label>
+                Scaffold width, mm
+                <span>Horizontal pass length.</span>
+                <input id="scWidth" type="number" min="0.1" step="0.1" value="30">
+              </label>
+
+              <label>
+                Scaffold depth, mm
+                <span>Vertical pass length.</span>
+                <input id="scDepth" type="number" min="0.1" step="0.1" value="30">
+              </label>
+
+              <label>
+                Minimum gap, mm
+                <span>Spacing between scaffold origins.</span>
+                <input id="scGap" type="number" min="0" step="0.1" value="7">
+              </label>
+
+              <div class="section-title">Pattern</div>
+              <label>
+                Layers
+                <span>All layers print before moving to the next scaffold.</span>
+                <input id="scLayers" type="number" min="1" step="1" value="3">
+              </label>
+
+              <label>
+                Line spacing, mm
+                <span>Adjacent line spacing.</span>
+                <input id="scSpacing" type="number" min="0.001" step="0.001" value="0.3">
+              </label>
+
+              <label class="regular-only">
+                Loop radius, mm
+                <span>U-turn loop radius.</span>
+                <input id="scLoopRadius" type="number" min="0.001" step="0.001" value="1.5">
+              </label>
+
+              <label class="regular-only">
+                Loop segments
+                <span>Arc segments per U-turn loop.</span>
+                <input id="scLoopSegments" type="number" min="3" max="200" step="1" value="9">
+              </label>
+
+              <label class="regular-only">
+                Loop overcorrection, mm
+                <span>Extra arc length after each U-turn before returning to the next line entry.</span>
+                <input id="scLoopOvercorrection" type="number" min="0" max="10" step="0.1" value="1">
+              </label>
+
+              <label class="diagonal-only">
+                Crossing angle, degrees
+                <span>Acute angle between the two diagonal line families.</span>
+                <input id="scLineAngle" type="range" min="10" max="90" step="1" value="90">
+                <output id="scLineAngleValue">90°</output>
+              </label>
+
+              <label>
+                Transfer depth, mm
+                <span>Distance from scaffold edge to outside connector lane.</span>
+                <input id="scTransferDepth" type="number" min="0" step="0.1" value="5">
+              </label>
+
+            </div>
+          </div>
+
+          <div class="pattern-fields" data-pattern-fields="circlePath" hidden>
+            <div class="control-grid">
+              <label>
+                Circle diameter, mm
+                <span>Constant diameter of each connected circle.</span>
+                <input id="cpCircleDiameter" type="number" min="0.1" step="0.1" value="3.183">
+              </label>
+
+              <label>
+                Center path
+                <span>Shape followed by the circle centers.</span>
+                <select id="cpPathType">
+                  <option value="circle">Circle</option>
+                  <option value="square">Square</option>
+                  <option value="line">Line</option>
+                </select>
+              </label>
+
+              <label>
+                Path size, mm
+                <span>Circle diameter, square side length, or line length of the center path.</span>
+                <input id="cpPathDiameter" type="number" min="0.1" step="0.1" value="25.465">
+              </label>
+
+              <label>
+                Center spacing, mm
+                <span>Distance along the path between circle centers.</span>
+                <input id="cpCenterSpacing" type="number" min="0.001" step="0.1" value="3.183">
+              </label>
+
+              <label>
+                Circle segments
+                <span>Higher values make each circle smoother.</span>
+                <input id="cpCircleSegments" type="number" min="12" max="720" step="1" value="72">
+              </label>
+
+              <label>
+                Layers
+                <span>Each layer alternates direction to avoid a long reset move.</span>
+                <input id="cpLayers" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label>
+                X shift per layer, mm
+                <span>Horizontal offset added after each completed layer.</span>
+                <input id="cpLayerShiftX" type="number" step="0.001" value="0">
+              </label>
+
+              <label>
+                Y shift per layer, mm
+                <span>Vertical offset added after each completed layer.</span>
+                <input id="cpLayerShiftY" type="number" step="0.001" value="0">
+              </label>
+            </div>
+          </div>
+
+          <div class="pattern-fields" data-pattern-fields="sine" hidden>
+            <div class="control-grid">
+              <label>
+                Curve length, mm
+                <span>X distance covered by each sine curve.</span>
+                <input id="sinLength" type="number" min="0.1" step="0.1" value="40">
+              </label>
+
+              <label>
+                Amplitude, mm
+                <span>Peak distance from the curve baseline.</span>
+                <input id="sinAmplitude" type="number" min="0" step="0.1" value="3">
+              </label>
+
+              <label>
+                Cycles per curve
+                <span>Number of full sine waves across one curve.</span>
+                <input id="sinCycles" type="number" min="0.001" step="0.1" value="4">
+              </label>
+
+              <label>
+                Repetitions
+                <span>Number of shifted sine curves to generate.</span>
+                <input id="sinRepetitions" type="number" min="1" step="1" value="8">
+              </label>
+
+              <label>
+                X shift per repetition, mm
+                <span>Horizontal offset added after each completed curve.</span>
+                <input id="sinShiftX" type="number" step="0.001" value="0.5">
+              </label>
+
+              <label>
+                Y shift per repetition, mm
+                <span>Vertical offset added after each completed curve.</span>
+                <input id="sinShiftY" type="number" step="0.001" value="0.5">
+              </label>
+
+              <label>
+                Phase, degrees
+                <span>Starting phase of the sine wave.</span>
+                <input id="sinPhase" type="number" step="1" value="0">
+              </label>
+
+              <label>
+                Samples per cycle
+                <span>Higher values make smoother curves and larger files.</span>
+                <input id="sinSamplesPerCycle" type="number" min="4" max="720" step="1" value="36">
+              </label>
+
+              <label class="check-label">
+                <input id="sinAlternate" type="checkbox" checked>
+                Alternate curve direction
+              </label>
+
+              <label class="check-label">
+                <input id="sinMirrorReverse" type="checkbox" checked>
+                Mirror reverse curves
+              </label>
+            </div>
+          </div>
+
+          <div class="pattern-fields" data-pattern-fields="archimedes" hidden>
+            <div class="control-grid">
+              <label>
+                Start radius, mm
+                <span>Initial radius at the beginning of each spiral.</span>
+                <input id="arcStartRadius" type="number" min="0" step="0.1" value="0">
+              </label>
+
+              <label>
+                Radius increase per turn, mm
+                <span>Archimedes spiral pitch: radius added after each full rotation.</span>
+                <input id="arcPitch" type="number" min="0.001" step="0.1" value="0.5">
+              </label>
+
+              <label>
+                Turns
+                <span>Number of full rotations per spiral.</span>
+                <input id="arcTurns" type="number" min="0.001" step="0.1" value="12">
+              </label>
+
+              <label>
+                Start angle, degrees
+                <span>Angular offset for the first point.</span>
+                <input id="arcStartAngle" type="number" step="1" value="0">
+              </label>
+
+              <label>
+                Repetitions
+                <span>Number of shifted spirals to generate.</span>
+                <input id="arcRepetitions" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label>
+                X shift per repetition, mm
+                <span>Horizontal offset added after each completed spiral.</span>
+                <input id="arcShiftX" type="number" step="0.001" value="0">
+              </label>
+
+              <label>
+                Y shift per repetition, mm
+                <span>Vertical offset added after each completed spiral.</span>
+                <input id="arcShiftY" type="number" step="0.001" value="0">
+              </label>
+
+              <label>
+                Segments per turn
+                <span>Higher values make smoother spirals and larger files.</span>
+                <input id="arcSegmentsPerTurn" type="number" min="8" max="1440" step="1" value="72">
+              </label>
+
+              <label class="check-label">
+                <input id="arcReverse" type="checkbox">
+                Reverse angular direction
+              </label>
+            </div>
+          </div>
+
+          <div class="section-title">Output Axes</div>
+          <label>
+            G-code X axis uses
+            <span>Maps the generated design axis to downloaded X moves.</span>
+            <select id="axisXSource">
+              <option value="x">Design X</option>
+              <option value="y">Design Y</option>
+            </select>
+          </label>
+
+          <label>
+            G-code X direction
+            <span>Invert if your machine axis is reversed.</span>
+            <select id="axisXSign">
+              <option value="1">Positive</option>
+              <option value="-1">Negative</option>
+            </select>
+          </label>
+
+          <label>
+            G-code Y axis uses
+            <span>Maps the generated design axis to downloaded Y moves.</span>
+            <select id="axisYSource">
+              <option value="y">Design Y</option>
+              <option value="x">Design X</option>
+            </select>
+          </label>
+
+          <label>
+            G-code Y direction
+            <span>Invert if your machine axis is reversed.</span>
+            <select id="axisYSign">
+              <option value="1">Positive</option>
+              <option value="-1">Negative</option>
+            </select>
+          </label>
+
+          <label>
+            Decimal places
+            <span>Used for relative XY moves.</span>
+            <input id="decimals" type="number" min="1" max="6" step="1" value="4">
+          </label>
+
+          <div class="section-title">Speed Ramp</div>
+          <label class="check-label">
+            <input id="speedRampEnabled" type="checkbox">
+            Gradual speed change
+          </label>
+
+          <label>
+            Min speed, mm/min
+            <span>Initial feedrate when speed ramping is enabled.</span>
+            <input id="speedMin" type="number" min="0.001" step="1" value="100">
+          </label>
+
+          <label>
+            Max speed, mm/min
+            <span>Final feedrate reached across completed curves, circles, or squares.</span>
+            <input id="speedMax" type="number" min="0.001" step="1" value="1200">
+          </label>
+
+          <label>
+            Filename
+            <span>The downloaded G-code file name.</span>
+            <input id="filename" type="text" value="spirograph_horizontal_single_crossing_8_relative_xy.gcode">
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="reset" type="button">Reset</button>
+          <a id="download" class="download" download="spirograph_horizontal_single_crossing_8_relative_xy.gcode" href="#">Download G-code</a>
+        </div>
+
+        <div id="warning" class="warning"></div>
+      </section>
+
+      <section class="panel preview-panel" aria-label="Preview and generated code">
+        <div class="stats">
+          <div class="stat"><strong id="statReps">0</strong><span>repetitions</span></div>
+          <div class="stat"><strong id="statBounds">0 x 0</strong><span>bounds, mm</span></div>
+          <div class="stat"><strong id="statDistance">0</strong><span>travel, mm</span></div>
+          <div class="stat"><strong id="statLines">0</strong><span>G-code lines</span></div>
+        </div>
+
+        <div class="preview-wrap">
+          <canvas id="preview" width="1200" height="600" aria-label="Generated toolpath preview"></canvas>
+          <div class="scrub">
+            <input id="progressSlider" type="range" min="0" max="0" step="1" value="0" aria-label="Toolpath progress">
+            <output id="progressLabel">0 / 0</output>
+          </div>
+          <div class="gcode-viewer">
+            <div id="speedBadge" class="speed-badge" hidden>Speed: --</div>
+            <textarea id="gcode" readonly spellcheck="false" aria-label="Generated G-code"></textarea>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const defaults = {
+      pattern: "figure8",
+      figDiameter: 10,
+      figAngle: 90,
+      figHeight: 10,
+      figShift: 0.5,
+      figMaxWidth: 50,
+      figSegments: 240,
+      scTotalWidth: 50,
+      scTotalDepth: 50,
+      scCols: 1,
+      scRows: 1,
+      scWidth: 30,
+      scDepth: 30,
+      scGap: 7,
+      scLayers: 3,
+      scSpacing: 0.3,
+      scLoopRadius: 1.5,
+      scLoopSegments: 9,
+      scLoopOvercorrection: 1,
+      scLineAngle: 90,
+      scTransferDepth: 5,
+      cpCircleDiameter: 3.183,
+      cpPathType: "circle",
+      cpPathDiameter: 25.465,
+      cpCenterSpacing: 3.183,
+      cpCircleSegments: 72,
+      cpLayers: 1,
+      cpLayerShiftX: 0,
+      cpLayerShiftY: 0,
+      sinLength: 40,
+      sinAmplitude: 3,
+      sinCycles: 4,
+      sinRepetitions: 8,
+      sinShiftX: 0.5,
+      sinShiftY: 0.5,
+      sinPhase: 0,
+      sinSamplesPerCycle: 36,
+      sinAlternate: true,
+      sinMirrorReverse: true,
+      arcStartRadius: 0,
+      arcPitch: 0.5,
+      arcTurns: 12,
+      arcStartAngle: 0,
+      arcRepetitions: 1,
+      arcShiftX: 0,
+      arcShiftY: 0,
+      arcSegmentsPerTurn: 72,
+      arcReverse: false,
+      axisXSource: "x",
+      axisXSign: "1",
+      axisYSource: "y",
+      axisYSign: "1",
+      decimals: 4,
+      speedRampEnabled: false,
+      speedMin: 100,
+      speedMax: 1200,
+      filename: "spirograph_horizontal_single_crossing_8_relative_xy.gcode"
+    };
+
+    const scaffoldFilename = "1Square_3Layers_0.3mmSpacing_30x30mm.gcode";
+    const diagonalScaffoldFilename = "1DiagonalSquare_3Layers_0.3mmSpacing_30x30mm.gcode";
+    const circlePathFilename = "ConnectedCirclesOnPath.gcode";
+    const sineFilename = "SinusoidalCurves_RelativeXY.gcode";
+    const archimedesFilename = "ArchimedesSpiral_RelativeXY.gcode";
+
+    const inputs = Object.fromEntries(
+      [...document.querySelectorAll("input, select")].map((input) => [input.id, input])
+    );
+
+    const els = {
+      canvas: document.querySelector("#preview"),
+      gcode: document.querySelector("#gcode"),
+      speedBadge: document.querySelector("#speedBadge"),
+      download: document.querySelector("#download"),
+      reset: document.querySelector("#reset"),
+      warning: document.querySelector("#warning"),
+      statReps: document.querySelector("#statReps"),
+      statBounds: document.querySelector("#statBounds"),
+      statDistance: document.querySelector("#statDistance"),
+      statLines: document.querySelector("#statLines"),
+      progressSlider: document.querySelector("#progressSlider"),
+      progressLabel: document.querySelector("#progressLabel"),
+      patternFields: [...document.querySelectorAll("[data-pattern-fields]")],
+      diagonalOnly: [...document.querySelectorAll(".diagonal-only")],
+      regularOnly: [...document.querySelectorAll(".regular-only")]
+    };
+
+    let blobUrl = null;
+    let currentPoints = [[0, 0]];
+    let currentStats = null;
+    let currentGcodeLines = ["G91"];
+    let currentSpeedMap = new Map();
+    let currentSpeedBoundaries = [];
+    let currentSpeedEnabled = false;
+
+    function numberValue(id) {
+      return Number(inputs[id].value);
+    }
+
+    function integerValue(id) {
+      return Math.round(numberValue(id));
+    }
+
+    function checkedValue(id) {
+      return Boolean(inputs[id].checked);
+    }
+
+    function settings() {
+      return {
+        pattern: inputs.pattern.value,
+        fig: {
+          diameter: numberValue("figDiameter"),
+          angle: numberValue("figAngle"),
+          height: numberValue("figHeight"),
+          shift: numberValue("figShift"),
+          maxWidth: numberValue("figMaxWidth"),
+          segments: integerValue("figSegments")
+        },
+        scaffold: {
+          totalWidth: numberValue("scTotalWidth"),
+          totalDepth: numberValue("scTotalDepth"),
+          cols: integerValue("scCols"),
+          rows: integerValue("scRows"),
+          width: numberValue("scWidth"),
+          depth: numberValue("scDepth"),
+          gap: numberValue("scGap"),
+          layers: integerValue("scLayers"),
+          spacing: numberValue("scSpacing"),
+          loopRadius: numberValue("scLoopRadius"),
+          loopSegments: integerValue("scLoopSegments"),
+          loopOvercorrection: numberValue("scLoopOvercorrection"),
+          lineAngle: numberValue("scLineAngle"),
+          transferDepth: numberValue("scTransferDepth"),
+          diagonal: inputs.pattern.value === "diagonalScaffold"
+        },
+        circlePath: {
+          circleDiameter: numberValue("cpCircleDiameter"),
+          pathType: inputs.cpPathType.value,
+          pathDiameter: numberValue("cpPathDiameter"),
+          centerSpacing: numberValue("cpCenterSpacing"),
+          circleSegments: integerValue("cpCircleSegments"),
+          layers: integerValue("cpLayers"),
+          layerShiftX: numberValue("cpLayerShiftX"),
+          layerShiftY: numberValue("cpLayerShiftY")
+        },
+        sine: {
+          length: numberValue("sinLength"),
+          amplitude: numberValue("sinAmplitude"),
+          cycles: numberValue("sinCycles"),
+          repetitions: integerValue("sinRepetitions"),
+          shiftX: numberValue("sinShiftX"),
+          shiftY: numberValue("sinShiftY"),
+          phase: numberValue("sinPhase"),
+          samplesPerCycle: integerValue("sinSamplesPerCycle"),
+          alternate: checkedValue("sinAlternate"),
+          mirrorReverse: checkedValue("sinMirrorReverse")
+        },
+        archimedes: {
+          startRadius: numberValue("arcStartRadius"),
+          pitch: numberValue("arcPitch"),
+          turns: numberValue("arcTurns"),
+          startAngle: numberValue("arcStartAngle"),
+          repetitions: integerValue("arcRepetitions"),
+          shiftX: numberValue("arcShiftX"),
+          shiftY: numberValue("arcShiftY"),
+          segmentsPerTurn: integerValue("arcSegmentsPerTurn"),
+          reverse: checkedValue("arcReverse")
+        },
+        axes: {
+          xSource: inputs.axisXSource.value,
+          xSign: Number(inputs.axisXSign.value),
+          ySource: inputs.axisYSource.value,
+          ySign: Number(inputs.axisYSign.value)
+        },
+        decimals: integerValue("decimals"),
+        speed: {
+          enabled: checkedValue("speedRampEnabled"),
+          min: numberValue("speedMin"),
+          max: numberValue("speedMax")
+        },
+        filename: inputs.filename.value.trim() || defaults.filename
+      };
+    }
+
+    function isScaffoldPattern(pattern) {
+      return pattern === "scaffold" || pattern === "diagonalScaffold";
+    }
+
+    function syncVisibleControls() {
+      els.patternFields.forEach((section) => {
+        const group = section.dataset.patternFields;
+        section.hidden = group === "scaffold"
+          ? !isScaffoldPattern(inputs.pattern.value)
+          : group !== inputs.pattern.value;
+      });
+
+      els.diagonalOnly.forEach((section) => {
+        section.hidden = inputs.pattern.value !== "diagonalScaffold";
+      });
+
+      els.regularOnly.forEach((section) => {
+        section.hidden = inputs.pattern.value === "diagonalScaffold";
+      });
+    }
+
+    function generateFigure8(cfg, decimals) {
+      const a = cfg.diameter;
+      const angleRadians = cfg.angle * Math.PI / 180;
+      const baseB = a * Math.tan(angleRadians / 2);
+      const shapeWidth = 2 * a;
+      const repetitions = Math.max(1, Math.floor((cfg.maxWidth - shapeWidth) / cfg.shift) + 1);
+      const points = [[0, 0]];
+      const speedBoundaryPoints = [];
+      const baseHeight = Math.abs(baseB);
+      const directScale = cfg.height < baseHeight ? cfg.height / baseHeight : 1;
+      const lobeBoost = cfg.height >= baseHeight ? solveFigure8LobeBoost(baseB, cfg.height) : 0;
+
+      for (let rep = 0; rep < repetitions; rep += 1) {
+        const offsetX = rep * cfg.shift;
+        const last = points[points.length - 1];
+
+        if (last[0] !== offsetX || last[1] !== 0) {
+          points.push([offsetX, 0]);
+        }
+
+        speedBoundaryPoints.push(points.length);
+
+        for (let i = 1; i <= cfg.segments; i += 1) {
+          const t = 2 * Math.PI * i / cfg.segments;
+          const sinT = Math.sin(t);
+          const y = baseB * sinT * Math.cos(t) * directScale * (1 + lobeBoost * sinT * sinT);
+          points.push([
+            offsetX + a * sinT,
+            y
+          ]);
+        }
+
+        if (rep !== repetitions - 1) {
+          points.push([offsetX + cfg.shift, 0]);
+        }
+      }
+
+      return {
+        points,
+        repetitions,
+        speedBoundaryPoints: speedBoundaryPoints.filter((pointIndex) => pointIndex > 0 && pointIndex < points.length),
+        gcode: generateRelativeGcode(points, decimals)
+      };
+    }
+
+    function figure8HeightForBoost(baseB, boost) {
+      let minY = 0;
+      let maxY = 0;
+      for (let i = 0; i <= 720; i += 1) {
+        const t = 2 * Math.PI * i / 720;
+        const sinT = Math.sin(t);
+        const y = baseB * sinT * Math.cos(t) * (1 + boost * sinT * sinT);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+      return maxY - minY;
+    }
+
+    function solveFigure8LobeBoost(baseB, targetHeight) {
+      if (targetHeight <= Math.abs(baseB)) return 0;
+
+      let low = 0;
+      let high = 1;
+      while (figure8HeightForBoost(baseB, high) < targetHeight && high < 10000) {
+        high *= 2;
+      }
+
+      for (let i = 0; i < 40; i += 1) {
+        const mid = (low + high) / 2;
+        if (figure8HeightForBoost(baseB, mid) < targetHeight) low = mid;
+        else high = mid;
+      }
+
+      return high;
+    }
+
+    function circlePathLength(cfg) {
+      if (cfg.pathType === "circle") return Math.PI * cfg.pathDiameter;
+      if (cfg.pathType === "square") return 4 * cfg.pathDiameter;
+      return cfg.pathDiameter;
+    }
+
+    function circlePathCenterAt(distance, cfg) {
+      const pathLength = circlePathLength(cfg);
+
+      if (cfg.pathType === "circle") {
+        const pathRadius = cfg.pathDiameter / 2;
+        const theta = (distance / pathLength) * 2 * Math.PI;
+        return {
+          x: pathRadius * Math.cos(theta),
+          y: pathRadius * Math.sin(theta)
+        };
+      }
+
+      if (cfg.pathType === "line") {
+        const d = Math.max(0, Math.min(pathLength, distance));
+        return {
+          x: -pathLength / 2 + d,
+          y: 0
+        };
+      }
+
+      const side = cfg.pathDiameter;
+      const d = ((distance % pathLength) + pathLength) % pathLength;
+      const half = side / 2;
+
+      if (d < side) return { x: -half + d, y: -half };
+      if (d < 2 * side) return { x: half, y: -half + (d - side) };
+      if (d < 3 * side) return { x: half - (d - 2 * side), y: half };
+      return { x: -half, y: half - (d - 3 * side) };
+    }
+
+    function generateCirclePath(cfg) {
+      const points = [];
+      const pathLength = circlePathLength(cfg);
+      const smallRadius = cfg.circleDiameter / 2;
+      const centerCount = Math.max(1, Math.floor(pathLength / cfg.centerSpacing));
+      const segmentsPerLayer = Math.max(1, centerCount * cfg.circleSegments);
+      const speedBoundaryPoints = [];
+
+      for (let layer = 0; layer < cfg.layers; layer += 1) {
+        const forward = layer % 2 === 0;
+        const layerStartIndex = points.length;
+
+        for (let i = 0; i <= segmentsPerLayer; i += 1) {
+          const layerProgress = i / segmentsPerLayer;
+          const pathProgress = forward ? layerProgress : 1 - layerProgress;
+          const center = circlePathCenterAt(pathProgress * pathLength, cfg);
+          const theta = pathProgress * centerCount * 2 * Math.PI;
+
+          points.push([
+            layer * cfg.layerShiftX + center.x + smallRadius * Math.cos(theta),
+            layer * cfg.layerShiftY + center.y + smallRadius * Math.sin(theta)
+          ]);
+        }
+
+        for (let circleIndex = 0; circleIndex < centerCount; circleIndex += 1) {
+          const boundary = layer > 0 && circleIndex === 0
+            ? layerStartIndex
+            : layerStartIndex + circleIndex * cfg.circleSegments + 1;
+          speedBoundaryPoints.push(boundary);
+        }
+      }
+
+      return {
+        points: points.length ? points : [[0, 0]],
+        repetitions: centerCount * cfg.layers,
+        speedBoundaryPoints: speedBoundaryPoints.filter((pointIndex) => pointIndex > 0 && pointIndex < points.length)
+      };
+    }
+
+    function sinePoint(cfg, rep, localX, angularProgress) {
+      const phaseRadians = cfg.phase * Math.PI / 180;
+      const wavePosition = cfg.mirrorReverse ? angularProgress : localX / cfg.length;
+      return [
+        rep * cfg.shiftX + localX,
+        rep * cfg.shiftY + cfg.amplitude * Math.sin(2 * Math.PI * cfg.cycles * wavePosition + phaseRadians)
+      ];
+    }
+
+    function generateSineCurves(cfg) {
+      const points = [];
+      const speedBoundaryPoints = [];
+      const segments = Math.max(1, Math.ceil(cfg.cycles * cfg.samplesPerCycle));
+
+      for (let rep = 0; rep < cfg.repetitions; rep += 1) {
+        const forward = !cfg.alternate || rep % 2 === 0;
+        const startX = forward ? 0 : cfg.length;
+
+        if (points.length === 0) {
+          points.push(sinePoint(cfg, rep, startX, 0));
+          speedBoundaryPoints.push(1);
+        } else {
+          speedBoundaryPoints.push(points.length);
+          points.push(sinePoint(cfg, rep, startX, 0));
+        }
+
+        for (let i = 1; i <= segments; i += 1) {
+          const progress = i / segments;
+          const localX = cfg.length * (forward ? progress : 1 - progress);
+          points.push(sinePoint(cfg, rep, localX, progress));
+        }
+      }
+
+      return {
+        points: points.length ? points : [[0, 0]],
+        repetitions: cfg.repetitions,
+        speedBoundaryPoints: speedBoundaryPoints.filter((pointIndex) => pointIndex > 0 && pointIndex < points.length)
+      };
+    }
+
+    function archimedesPoint(cfg, rep, progress) {
+      const direction = cfg.reverse ? -1 : 1;
+      const theta = direction * 2 * Math.PI * cfg.turns * progress + cfg.startAngle * Math.PI / 180;
+      const radius = cfg.startRadius + cfg.pitch * cfg.turns * progress;
+
+      return [
+        rep * cfg.shiftX + radius * Math.cos(theta),
+        rep * cfg.shiftY + radius * Math.sin(theta)
+      ];
+    }
+
+    function generateArchimedesSpiral(cfg) {
+      const points = [];
+      const speedBoundaryPoints = [];
+      const segments = Math.max(1, Math.ceil(cfg.turns * cfg.segmentsPerTurn));
+
+      for (let rep = 0; rep < cfg.repetitions; rep += 1) {
+        if (points.length === 0) {
+          points.push(archimedesPoint(cfg, rep, 0));
+          speedBoundaryPoints.push(1);
+        } else {
+          speedBoundaryPoints.push(points.length);
+          points.push(archimedesPoint(cfg, rep, 0));
+        }
+
+        for (let i = 1; i <= segments; i += 1) {
+          points.push(archimedesPoint(cfg, rep, i / segments));
+        }
+      }
+
+      return {
+        points: points.length ? points : [[0, 0]],
+        repetitions: cfg.repetitions,
+        speedBoundaryPoints: speedBoundaryPoints.filter((pointIndex) => pointIndex > 0 && pointIndex < points.length)
+      };
+    }
+
+    function cleanZero(value) {
+      return Math.abs(value) < 1e-9 ? 0 : value;
+    }
+
+    function formatMove(dx, dy, decimals, omitZeroAxes = true) {
+      dx = cleanZero(dx);
+      dy = cleanZero(dy);
+
+      if (!omitZeroAxes) {
+        return `G1 X${dx.toFixed(decimals)} Y${dy.toFixed(decimals)}`;
+      }
+
+      if (dx === 0 && dy === 0) return `G1 X${dx.toFixed(decimals)} Y${dy.toFixed(decimals)}`;
+      if (dx === 0) return `G1 Y${dy.toFixed(decimals)}`;
+      if (dy === 0) return `G1 X${dx.toFixed(decimals)}`;
+      return `G1 X${dx.toFixed(decimals)} Y${dy.toFixed(decimals)}`;
+    }
+
+    function generateRelativeGcode(points, decimals) {
+      const lines = ["G91"];
+      let [prevX, prevY] = points[0];
+
+      for (let i = 1; i < points.length; i += 1) {
+        const [x, y] = points[i];
+        const dx = x - prevX;
+        const dy = y - prevY;
+        const roundedX = Number(dx.toFixed(decimals));
+        const roundedY = Number(dy.toFixed(decimals));
+
+        if (roundedX !== 0 || roundedY !== 0) {
+          lines.push(formatMove(roundedX, roundedY, decimals, false));
+        }
+
+        prevX = x;
+        prevY = y;
+      }
+
+      return lines.join("\n") + "\n";
+    }
+
+    function speedMapFromBoundaries(boundaries, speedCfg) {
+      const speedMap = new Map();
+      if (!speedCfg.enabled || !boundaries || boundaries.length === 0) return speedMap;
+
+      boundaries.forEach((pointIndex, index) => {
+        const t = boundaries.length <= 1 ? 0 : index / (boundaries.length - 1);
+        const speed = speedCfg.min + (speedCfg.max - speedCfg.min) * t;
+        speedMap.set(pointIndex, speed);
+      });
+
+      return speedMap;
+    }
+
+    function generateRelativeGcodeWithSpeed(points, decimals, speedMap) {
+      const lines = ["G91"];
+      let [prevX, prevY] = points[0];
+      let pendingSpeed = null;
+
+      for (let i = 1; i < points.length; i += 1) {
+        const [x, y] = points[i];
+        const dx = x - prevX;
+        const dy = y - prevY;
+        const roundedX = Number(dx.toFixed(decimals));
+        const roundedY = Number(dy.toFixed(decimals));
+
+        if (speedMap.has(i)) pendingSpeed = speedMap.get(i);
+
+        if (roundedX !== 0 || roundedY !== 0) {
+          const speed = pendingSpeed;
+          const feed = Number.isFinite(speed) ? ` F${speed.toFixed(1)}` : "";
+          lines.push(`${formatMove(roundedX, roundedY, decimals, false)}${feed}`);
+          pendingSpeed = null;
+        }
+
+        prevX = x;
+        prevY = y;
+      }
+
+      return lines.join("\n") + "\n";
+    }
+
+    function loopMoves(direction, axis, cfg) {
+      const s = cfg.spacing;
+      const r = cfg.loopRadius;
+      const cx = Math.sqrt(r * r - (s / 2) ** 2);
+      const startAngle = Math.atan2(-s / 2, -cx);
+      const endAngle = Math.atan2(s / 2, -cx);
+      let sweep = endAngle - startAngle;
+      if (sweep <= 0) sweep += 2 * Math.PI;
+
+      const moves = [];
+      let prevX = 0;
+      let prevY = 0;
+
+      for (let i = 1; i <= cfg.loopSegments; i += 1) {
+        const angle = startAngle + sweep * i / cfg.loopSegments;
+        const px = cx + r * Math.cos(angle);
+        const py = s / 2 + r * Math.sin(angle);
+        const dx = (px - prevX) * direction;
+        const dy = py - prevY;
+        moves.push(axis === "x" ? [dx, dy] : [dy, dx]);
+        prevX = px;
+        prevY = py;
+      }
+
+      const overcorrection = Math.max(0, cfg.loopOvercorrection || 0);
+      if (overcorrection > 0) {
+        const extraSweep = overcorrection / r;
+        const extraSegments = Math.min(1000, Math.max(1, Math.ceil(cfg.loopSegments * extraSweep / sweep)));
+
+        for (let i = 1; i <= extraSegments; i += 1) {
+          const angle = endAngle + extraSweep * i / extraSegments;
+          const px = cx + r * Math.cos(angle);
+          const py = s / 2 + r * Math.sin(angle);
+          const dx = (px - prevX) * direction;
+          const dy = py - prevY;
+          moves.push(axis === "x" ? [dx, dy] : [dy, dx]);
+          prevX = px;
+          prevY = py;
+        }
+
+        const dx = -prevX * direction;
+        const dy = s - prevY;
+        moves.push(axis === "x" ? [dx, dy] : [dy, dx]);
+      }
+
+      return moves;
+    }
+
+    function scaffoldOrder(cfg) {
+      const scaffolds = [];
+
+      for (let row = 0; row < cfg.rows; row += 1) {
+        const leftToRight = row % 2 === 0;
+        for (let c = 0; c < cfg.cols; c += 1) {
+          const col = leftToRight ? c : cfg.cols - 1 - c;
+          scaffolds.push({
+            col,
+            row,
+            x: col * (cfg.width + cfg.gap),
+            y: row * (cfg.depth + cfg.gap)
+          });
+        }
+      }
+
+      return scaffolds;
+    }
+
+    function linePositions(size, spacing) {
+      const count = Math.max(2, Math.floor(size / spacing) + 1);
+      const activeSpan = (count - 1) * spacing;
+      const offset = (size - activeSpan) / 2;
+      return Array.from({ length: count }, (_, i) => offset + i * spacing);
+    }
+
+    function generateScaffold(cfg) {
+      const points = [[0, 0]];
+      const speedBoundaryPoints = [1];
+      let currentPreviewX = 0;
+      let currentPreviewY = 0;
+
+      function addMove(dx, dy) {
+        currentPreviewX += dx;
+        currentPreviewY += dy;
+        points.push([currentPreviewX, currentPreviewY]);
+      }
+
+      function moveTo(x, y) {
+        addMove(x - currentPreviewX, y - currentPreviewY);
+      }
+
+      function moveAxisAlignedTo(x, y) {
+        if (Math.abs(x - currentPreviewX) > 1e-9) moveTo(x, currentPreviewY);
+        if (Math.abs(y - currentPreviewY) > 1e-9) moveTo(x, y);
+      }
+
+      function routeTo(x, y, rect) {
+        const margin = Math.max(0, cfg.transferDepth);
+        const laneY = rect.bottom - margin;
+        const leftLane = rect.left - margin;
+        const rightLane = rect.right + margin;
+        const midX = (rect.left + rect.right) / 2;
+        const eps = 1e-6;
+        const currentInsideX = currentPreviewX > rect.left + eps && currentPreviewX < rect.right - eps;
+        const currentInsideY = currentPreviewY > rect.bottom + eps && currentPreviewY < rect.top - eps;
+        const currentOnBottom = Math.abs(currentPreviewY - rect.bottom) < eps;
+        const currentOnTop = Math.abs(currentPreviewY - rect.top) < eps;
+        const currentOnLeft = Math.abs(currentPreviewX - rect.left) < eps;
+        const currentOnRight = Math.abs(currentPreviewX - rect.right) < eps;
+        const currentBetweenX = currentPreviewX > rect.left + eps && currentPreviewX < rect.right - eps;
+        const currentAboveOrOnTop = currentPreviewY >= rect.top - eps;
+
+        if (currentInsideX && currentInsideY) {
+          const exitX = Math.abs(currentPreviewX - rect.left) < Math.abs(currentPreviewX - rect.right)
+            ? leftLane
+            : rightLane;
+          moveAxisAlignedTo(exitX, currentPreviewY);
+        } else if (currentOnTop && currentBetweenX) {
+          const exitX = currentPreviewX < midX ? leftLane : rightLane;
+          moveAxisAlignedTo(exitX, currentPreviewY);
+        } else if ((currentOnLeft || currentOnRight) && currentPreviewY > rect.bottom + eps) {
+          moveAxisAlignedTo(currentOnLeft ? leftLane : rightLane, currentPreviewY);
+        } else if (currentOnBottom && currentBetweenX) {
+          moveAxisAlignedTo(currentPreviewX, laneY);
+        } else if (currentBetweenX && currentAboveOrOnTop) {
+          const exitX = currentPreviewX < midX ? leftLane : rightLane;
+          moveAxisAlignedTo(exitX, currentPreviewY);
+        }
+
+        const onBottom = Math.abs(y - rect.bottom) < eps;
+        const onTop = Math.abs(y - rect.top) < eps;
+        const onLeft = Math.abs(x - rect.left) < eps;
+        const onRight = Math.abs(x - rect.right) < eps;
+
+        if (onBottom) {
+          moveAxisAlignedTo(currentPreviewX, laneY);
+          moveAxisAlignedTo(x, laneY);
+          moveAxisAlignedTo(x, y);
+          return;
+        }
+
+        if (onTop) {
+          const sideX = x < midX ? leftLane : rightLane;
+          moveAxisAlignedTo(currentPreviewX, laneY);
+          moveAxisAlignedTo(sideX, laneY);
+          moveAxisAlignedTo(sideX, y);
+          moveAxisAlignedTo(x, y);
+          return;
+        }
+
+        if (onLeft || onRight) {
+          const sideX = onLeft ? leftLane : rightLane;
+          moveAxisAlignedTo(currentPreviewX, laneY);
+          moveAxisAlignedTo(sideX, laneY);
+          moveAxisAlignedTo(sideX, y);
+          moveAxisAlignedTo(x, y);
+          return;
+        }
+
+        moveAxisAlignedTo(currentPreviewX, laneY);
+        moveAxisAlignedTo(x, laneY);
+        moveAxisAlignedTo(x, y);
+      }
+
+      function generateHorizontalRows(xPositions, yPositions) {
+        const left = xPositions[0];
+        const right = xPositions[xPositions.length - 1];
+
+        yPositions.forEach((y, index) => {
+          const leftToRight = index % 2 === 0;
+          moveTo(leftToRight ? left : right, y);
+          moveTo(leftToRight ? right : left, y);
+
+          if (index < yPositions.length - 1) {
+            const side = leftToRight ? 1 : -1;
+            loopMoves(side, "x", cfg).forEach(([dx, dy]) => addMove(dx, dy));
+          }
+        });
+      }
+
+      function generateVerticalRows(xPositions, yPositions) {
+        const bottom = yPositions[0];
+        const top = yPositions[yPositions.length - 1];
+
+        xPositions.forEach((x, index) => {
+          const bottomToTop = index % 2 === 0;
+          moveTo(x, bottomToTop ? bottom : top);
+          moveTo(x, bottomToTop ? top : bottom);
+
+          if (index < xPositions.length - 1) {
+            const side = bottomToTop ? 1 : -1;
+            loopMoves(side, "y", cfg).forEach(([dx, dy]) => addMove(dx, dy));
+          }
+        });
+      }
+
+      function scaffoldGrid(scaffold) {
+        const xPositions = linePositions(cfg.width, cfg.spacing).map((x) => scaffold.x + x);
+        const yPositions = linePositions(cfg.depth, cfg.spacing).map((y) => scaffold.y + y);
+        return {
+          xPositions,
+          yPositions,
+          rect: {
+            left: xPositions[0],
+            right: xPositions[xPositions.length - 1],
+            bottom: yPositions[0],
+            top: yPositions[yPositions.length - 1]
+          }
+        };
+      }
+
+      function uniquePoints(pointsList) {
+        const result = [];
+        pointsList.forEach((point) => {
+          if (!result.some((existing) => Math.hypot(existing.x - point.x, existing.y - point.y) < 1e-7)) {
+            result.push(point);
+          }
+        });
+        return result;
+      }
+
+      function diagonalSegments(rect, angleDegrees) {
+        const angle = angleDegrees * Math.PI / 180;
+        const d = { x: Math.cos(angle), y: Math.sin(angle) };
+        const n = { x: -Math.sin(angle), y: Math.cos(angle) };
+        const corners = [
+          { x: rect.left, y: rect.bottom },
+          { x: rect.right, y: rect.bottom },
+          { x: rect.right, y: rect.top },
+          { x: rect.left, y: rect.top }
+        ];
+        const projections = corners.map((p) => n.x * p.x + n.y * p.y);
+        const minC = Math.min(...projections);
+        const maxC = Math.max(...projections);
+        const range = maxC - minC;
+        const count = Math.max(2, Math.floor(range / cfg.spacing) + 1);
+        const activeRange = (count - 1) * cfg.spacing;
+        const startC = minC + (range - activeRange) / 2;
+        const segments = [];
+
+        for (let i = 0; i < count; i += 1) {
+          const c = startC + i * cfg.spacing;
+          const intersections = [];
+
+          [rect.left, rect.right].forEach((x) => {
+            if (Math.abs(n.y) > 1e-9) {
+              const y = (c - n.x * x) / n.y;
+              if (y >= rect.bottom - 1e-7 && y <= rect.top + 1e-7) intersections.push({ x, y });
+            }
+          });
+
+          [rect.bottom, rect.top].forEach((y) => {
+            if (Math.abs(n.x) > 1e-9) {
+              const x = (c - n.y * y) / n.x;
+              if (x >= rect.left - 1e-7 && x <= rect.right + 1e-7) intersections.push({ x, y });
+            }
+          });
+
+          const pts = uniquePoints(intersections)
+            .sort((a, b) => (a.x * d.x + a.y * d.y) - (b.x * d.x + b.y * d.y));
+
+          if (pts.length >= 2) {
+            const segment = i % 2 === 0 ? [pts[0], pts[pts.length - 1]] : [pts[pts.length - 1], pts[0]];
+            segments.push(segment);
+          }
+        }
+
+        return segments;
+      }
+
+      function generateRegularLayer(scaffold) {
+        const { xPositions, yPositions, rect } = scaffoldGrid(scaffold);
+        generateHorizontalRows(xPositions, yPositions);
+        routeTo(xPositions[0], yPositions[0], rect);
+        generateVerticalRows(xPositions, yPositions);
+      }
+
+      function generateDiagonalLayer(scaffold) {
+        const { rect } = scaffoldGrid(scaffold);
+        const halfAngle = cfg.lineAngle / 2;
+        const familyAngles = [halfAngle, -halfAngle];
+
+        familyAngles.forEach((angle) => {
+          diagonalSegments(rect, angle).forEach((segment) => {
+            routeTo(segment[0].x, segment[0].y, rect);
+            moveTo(segment[1].x, segment[1].y);
+          });
+        });
+      }
+
+      const scaffolds = scaffoldOrder(cfg);
+      scaffolds.forEach((scaffold, index) => {
+        const { xPositions, yPositions, rect } = scaffoldGrid(scaffold);
+        const firstX = xPositions[0];
+        const firstY = yPositions[0];
+
+        if (index > 0) speedBoundaryPoints.push(points.length);
+        routeTo(firstX, firstY, rect);
+        for (let layer = 0; layer < cfg.layers; layer += 1) {
+          if (cfg.diagonal) generateDiagonalLayer(scaffold);
+          else generateRegularLayer(scaffold);
+        }
+        routeTo(firstX, firstY, rect);
+      });
+
+      return {
+        points,
+        repetitions: cfg.cols * cfg.rows,
+        speedBoundaryPoints: speedBoundaryPoints.filter((pointIndex) => pointIndex > 0 && pointIndex < points.length)
+      };
+    }
+
+    function pathStats(points) {
+      let minX = points[0][0];
+      let maxX = points[0][0];
+      let minY = points[0][1];
+      let maxY = points[0][1];
+      let distance = 0;
+
+      for (let i = 0; i < points.length; i += 1) {
+        const [x, y] = points[i];
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+
+        if (i > 0) {
+          const [px, py] = points[i - 1];
+          distance += Math.hypot(x - px, y - py);
+        }
+      }
+
+      return {
+        minX,
+        maxX,
+        minY,
+        maxY,
+        width: maxX - minX,
+        height: maxY - minY,
+        distance
+      };
+    }
+
+    function transformPoints(points, axes) {
+      return points.map(([x, y]) => {
+        const source = { x, y };
+        return [
+          axes.xSign * source[axes.xSource],
+          axes.ySign * source[axes.ySource]
+        ];
+      });
+    }
+
+    function drawPath(ctx, points, map, startIndex, endIndex) {
+      if (!points.length || endIndex < startIndex) return;
+      ctx.beginPath();
+      for (let index = startIndex; index <= endIndex; index += 1) {
+        const [x, y] = map(points[index]);
+        if (index === startIndex) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    function drawPreview(points, stats, progressIndex = points.length - 1) {
+      const canvas = els.canvas;
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      const padding = 40;
+      const boundsWidth = Math.max(stats.width, 0.001);
+      const boundsHeight = Math.max(stats.height, 0.001);
+      const scale = Math.min((width - padding * 2) / boundsWidth, (height - padding * 2) / boundsHeight);
+      const offsetX = padding + (width - padding * 2 - boundsWidth * scale) / 2;
+      const offsetY = padding + (height - padding * 2 - boundsHeight * scale) / 2;
+
+      function map(point) {
+        return [
+          offsetX + (point[0] - stats.minX) * scale,
+          height - (offsetY + (point[1] - stats.minY) * scale)
+        ];
+      }
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#fbfcfd";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = "#d8dee6";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(offsetX, height - offsetY - boundsHeight * scale, boundsWidth * scale, boundsHeight * scale);
+
+      const axisMinX = stats.minX <= 0 && stats.maxX >= 0 ? 0 : stats.minX;
+      const axisMinY = stats.minY <= 0 && stats.maxY >= 0 ? 0 : stats.minY;
+      const origin = map([axisMinX, axisMinY]);
+      const xEnd = map([stats.maxX, axisMinY]);
+      const yEnd = map([axisMinX, stats.maxY]);
+
+      ctx.strokeStyle = "#a7b1bd";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(map([stats.minX, axisMinY])[0], origin[1]);
+      ctx.lineTo(xEnd[0], xEnd[1]);
+      ctx.moveTo(origin[0], map([axisMinX, stats.minY])[1]);
+      ctx.lineTo(yEnd[0], yEnd[1]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = "#53606d";
+      ctx.font = "16px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillText("+X", xEnd[0] - 24, xEnd[1] - 8);
+      ctx.fillText("+Y", yEnd[0] + 8, yEnd[1] + 16);
+
+      const clampedProgress = Math.max(0, Math.min(points.length - 1, progressIndex));
+
+      ctx.strokeStyle = "#c6d2dc";
+      ctx.lineWidth = 1.2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      drawPath(ctx, points, map, 0, points.length - 1);
+
+      ctx.strokeStyle = "#146c94";
+      ctx.lineWidth = 1.6;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      drawPath(ctx, points, map, 0, clampedProgress);
+
+      const start = map(points[0]);
+      const end = map(points[points.length - 1]);
+      ctx.fillStyle = "#1f8a5b";
+      ctx.beginPath();
+      ctx.arc(start[0], start[1], 5, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = "#b43b3b";
+      ctx.beginPath();
+      ctx.arc(end[0], end[1], 5, 0, 2 * Math.PI);
+      ctx.fill();
+
+      const current = map(points[clampedProgress]);
+      ctx.fillStyle = "#d98324";
+      ctx.beginPath();
+      ctx.arc(current[0], current[1], 6, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+
+    function validate(cfg, stats, render = true) {
+      const messages = [];
+      const decimalsValid = Number.isFinite(cfg.decimals) && cfg.decimals >= 1 && cfg.decimals <= 6;
+      if (!decimalsValid) messages.push("Decimal places must be between 1 and 6.");
+      if (cfg.axes.xSource === cfg.axes.ySource) messages.push("G-code X and Y should use different design axes.");
+      if (cfg.speed.enabled) {
+        if (!Number.isFinite(cfg.speed.min) || cfg.speed.min <= 0) messages.push("Min speed must be greater than 0.");
+        if (!Number.isFinite(cfg.speed.max) || cfg.speed.max <= 0) messages.push("Max speed must be greater than 0.");
+        if (Number.isFinite(cfg.speed.min) && Number.isFinite(cfg.speed.max) && cfg.speed.max < cfg.speed.min) messages.push("Max speed must be greater than or equal to min speed.");
+      }
+
+      if (cfg.pattern === "figure8") {
+        const fig = cfg.fig;
+        if (!Number.isFinite(fig.diameter) || fig.diameter <= 0) messages.push("Lobe diameter must be greater than 0.");
+        if (!Number.isFinite(fig.angle) || fig.angle <= 0 || fig.angle >= 180) messages.push("Crossing angle must be between 0 and 180 degrees.");
+        if (!Number.isFinite(fig.height) || fig.height <= 0) messages.push("Figure-8 height must be greater than 0.");
+        if (!Number.isFinite(fig.shift) || fig.shift <= 0) messages.push("Shift must be greater than 0.");
+        if (!Number.isFinite(fig.maxWidth) || fig.maxWidth <= 0) messages.push("Max width must be greater than 0.");
+        if (!Number.isFinite(fig.segments) || fig.segments < 24) messages.push("Segments per 8 must be at least 24.");
+        if (stats && stats.width > fig.maxWidth + 0.000001) messages.push("Current shape is wider than the max width; increase max width or reduce lobe diameter.");
+      } else if (cfg.pattern === "circlePath") {
+        const cp = cfg.circlePath;
+        const knownPath = cp.pathType === "circle" || cp.pathType === "square" || cp.pathType === "line";
+
+        if (!knownPath) messages.push("Center path must be circle, square, or line.");
+        if (!Number.isFinite(cp.circleDiameter) || cp.circleDiameter <= 0) messages.push("Circle diameter must be greater than 0.");
+        if (!Number.isFinite(cp.pathDiameter) || cp.pathDiameter <= 0) messages.push("Path size must be greater than 0.");
+        if (!Number.isFinite(cp.centerSpacing) || cp.centerSpacing <= 0) messages.push("Center spacing must be greater than 0.");
+        if (!Number.isFinite(cp.layers) || cp.layers < 1) messages.push("Layers must be at least 1.");
+        if (!Number.isFinite(cp.layerShiftX)) messages.push("X shift per layer must be a finite number.");
+        if (!Number.isFinite(cp.layerShiftY)) messages.push("Y shift per layer must be a finite number.");
+        if (knownPath && Number.isFinite(cp.pathDiameter) && Number.isFinite(cp.centerSpacing) && cp.centerSpacing > 0) {
+          const pathLength = circlePathLength(cp);
+          const centerCount = Math.floor(pathLength / cp.centerSpacing);
+          const totalSegments = centerCount * cp.circleSegments * Math.max(1, cp.layers);
+          if (centerCount < 1) messages.push("Center spacing is larger than the path; reduce spacing or increase path size.");
+          if (totalSegments > 200000) messages.push("This would generate too many points; increase center spacing or reduce circle segments.");
+        }
+        if (!Number.isFinite(cp.circleSegments) || cp.circleSegments < 12) messages.push("Circle segments must be at least 12.");
+      } else if (cfg.pattern === "sine") {
+        const sine = cfg.sine;
+        const totalSegments = sine.cycles * sine.samplesPerCycle * sine.repetitions;
+
+        if (!Number.isFinite(sine.length) || sine.length <= 0) messages.push("Curve length must be greater than 0.");
+        if (!Number.isFinite(sine.amplitude) || sine.amplitude < 0) messages.push("Amplitude cannot be negative.");
+        if (!Number.isFinite(sine.cycles) || sine.cycles <= 0) messages.push("Cycles per curve must be greater than 0.");
+        if (!Number.isFinite(sine.repetitions) || sine.repetitions < 1) messages.push("Repetitions must be at least 1.");
+        if (!Number.isFinite(sine.shiftX)) messages.push("X shift must be a finite number.");
+        if (!Number.isFinite(sine.shiftY)) messages.push("Y shift must be a finite number.");
+        if (!Number.isFinite(sine.phase)) messages.push("Phase must be a finite number.");
+        if (!Number.isFinite(sine.samplesPerCycle) || sine.samplesPerCycle < 4) messages.push("Samples per cycle must be at least 4.");
+        if (Number.isFinite(totalSegments) && totalSegments > 200000) messages.push("This would generate too many points; reduce repetitions, cycles, or samples per cycle.");
+      } else if (cfg.pattern === "archimedes") {
+        const arc = cfg.archimedes;
+        const totalSegments = arc.turns * arc.segmentsPerTurn * arc.repetitions;
+
+        if (!Number.isFinite(arc.startRadius) || arc.startRadius < 0) messages.push("Start radius cannot be negative.");
+        if (!Number.isFinite(arc.pitch) || arc.pitch <= 0) messages.push("Radius increase per turn must be greater than 0.");
+        if (!Number.isFinite(arc.turns) || arc.turns <= 0) messages.push("Turns must be greater than 0.");
+        if (!Number.isFinite(arc.startAngle)) messages.push("Start angle must be a finite number.");
+        if (!Number.isFinite(arc.repetitions) || arc.repetitions < 1) messages.push("Repetitions must be at least 1.");
+        if (!Number.isFinite(arc.shiftX)) messages.push("X shift must be a finite number.");
+        if (!Number.isFinite(arc.shiftY)) messages.push("Y shift must be a finite number.");
+        if (!Number.isFinite(arc.segmentsPerTurn) || arc.segmentsPerTurn < 8) messages.push("Segments per turn must be at least 8.");
+        if (Number.isFinite(totalSegments) && totalSegments > 200000) messages.push("This would generate too many points; reduce repetitions, turns, or segments per turn.");
+      } else {
+        const sc = cfg.scaffold;
+        const totalX = sc.cols * sc.width + Math.max(sc.cols - 1, 0) * sc.gap;
+        const totalY = sc.rows * sc.depth + Math.max(sc.rows - 1, 0) * sc.gap;
+        const lineCountY = Math.floor(sc.depth / sc.spacing) + 1;
+        const lineCountX = Math.floor(sc.width / sc.spacing) + 1;
+
+        if (sc.width <= 0 || sc.depth <= 0) messages.push("Scaffold width and depth must be positive.");
+        if (sc.cols < 1 || sc.rows < 1) messages.push("Rows and columns must be at least 1.");
+        if (sc.layers < 1) messages.push("Layers must be at least 1.");
+        if (sc.spacing <= 0) messages.push("Line spacing must be positive.");
+        if (sc.loopRadius <= 0) messages.push("Loop radius must be positive.");
+        if (sc.spacing > 2 * sc.loopRadius) messages.push("Line spacing cannot exceed loop diameter.");
+        if (sc.loopSegments < 3) messages.push("Loop segments must be at least 3.");
+        if (!Number.isFinite(sc.loopOvercorrection) || sc.loopOvercorrection < 0 || sc.loopOvercorrection > 10) messages.push("Loop overcorrection must be between 0 and 10 mm.");
+        if (sc.diagonal && (sc.lineAngle < 10 || sc.lineAngle > 90)) messages.push("Crossing angle must be between 10 and 90 degrees.");
+        if (sc.transferDepth < 0) messages.push("Transfer depth cannot be negative.");
+        if (lineCountY < 2 || lineCountX < 2) messages.push("Scaffold is too small for the selected line spacing.");
+        if (totalX > sc.totalWidth) messages.push(`Scaffolds need ${totalX.toFixed(1)} mm width, but total area is ${sc.totalWidth.toFixed(1)} mm.`);
+        if (totalY > sc.totalDepth) messages.push(`Scaffolds need ${totalY.toFixed(1)} mm depth, but total area is ${sc.totalDepth.toFixed(1)} mm.`);
+      }
+
+      if (render) {
+        els.warning.textContent = messages.join(" ");
+        els.warning.classList.toggle("visible", messages.length > 0);
+      }
+      return messages.length === 0;
+    }
+
+    function showWarning(message) {
+      els.warning.textContent = message;
+      els.warning.classList.add("visible");
+      els.download.toggleAttribute("aria-disabled", true);
+    }
+
+    function lineStartOffset(lines, lineIndex) {
+      let offset = 0;
+      for (let i = 0; i < lineIndex; i += 1) {
+        offset += lines[i].length + 1;
+      }
+      return offset;
+    }
+
+    function speedAtPoint(pointIndex) {
+      if (!currentSpeedEnabled || currentSpeedMap.size === 0) return null;
+
+      let speed = null;
+      for (const [boundaryPoint, boundarySpeed] of currentSpeedBoundaries) {
+        if (boundaryPoint > pointIndex) break;
+        speed = boundarySpeed;
+      }
+
+      return speed;
+    }
+
+    function updateSpeedBadge(pointIndex) {
+      const speed = speedAtPoint(pointIndex);
+      if (!Number.isFinite(speed)) {
+        els.speedBadge.hidden = true;
+        return;
+      }
+
+      els.speedBadge.hidden = false;
+      els.speedBadge.textContent = `Speed: F${speed.toFixed(1)}`;
+    }
+
+    function highlightProgress(progressIndex) {
+      if (!currentStats) return;
+
+      const clamped = Math.max(0, Math.min(currentPoints.length - 1, progressIndex));
+      els.progressSlider.max = String(Math.max(0, currentPoints.length - 1));
+      els.progressSlider.value = String(clamped);
+      els.progressLabel.textContent = `${clamped} / ${Math.max(0, currentPoints.length - 1)}`;
+      drawPreview(currentPoints, currentStats, clamped);
+      updateSpeedBadge(clamped);
+
+      const lineIndex = Math.min(clamped, currentGcodeLines.length - 1);
+      const start = lineStartOffset(currentGcodeLines, lineIndex);
+      const end = start + currentGcodeLines[lineIndex].length;
+      els.gcode.focus({ preventScroll: true });
+      els.gcode.setSelectionRange(start, end);
+      const lineHeight = 17;
+      els.gcode.scrollTop = Math.max(0, (lineIndex - 6) * lineHeight);
+    }
+
+    function update() {
+      try {
+        const cfg = settings();
+        const angleOutput = document.querySelector("#scLineAngleValue");
+        if (angleOutput) angleOutput.textContent = `${cfg.scaffold.lineAngle.toFixed(0)}°`;
+
+        if (!validate(cfg, null)) {
+          return;
+        }
+
+        const result = cfg.pattern === "figure8"
+          ? generateFigure8(cfg.fig, cfg.decimals)
+          : cfg.pattern === "circlePath"
+            ? generateCirclePath(cfg.circlePath)
+            : cfg.pattern === "sine"
+              ? generateSineCurves(cfg.sine)
+              : cfg.pattern === "archimedes"
+                ? generateArchimedesSpiral(cfg.archimedes)
+                : generateScaffold(cfg.scaffold, cfg.decimals);
+        const { repetitions } = result;
+        const points = transformPoints(result.points, cfg.axes);
+        if (!points.length || points.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
+          throw new Error("Generated path contains invalid coordinates.");
+        }
+
+        const speedMap = speedMapFromBoundaries(result.speedBoundaryPoints, cfg.speed);
+        const gcode = generateRelativeGcodeWithSpeed(points, cfg.decimals, speedMap);
+        const stats = pathStats(points);
+        const ok = validate(cfg, stats);
+        currentPoints = points;
+        currentStats = stats;
+        currentGcodeLines = gcode.trimEnd().split("\n");
+        currentSpeedMap = speedMap;
+        currentSpeedBoundaries = [...speedMap.entries()].sort((a, b) => a[0] - b[0]);
+        currentSpeedEnabled = cfg.speed.enabled;
+        const previousProgress = Number(els.progressSlider.value || 0);
+        const progressIndex = Math.min(previousProgress, Math.max(0, points.length - 1));
+
+        els.statReps.textContent = String(repetitions);
+        els.statBounds.textContent = `${stats.width.toFixed(4)} x ${stats.height.toFixed(4)}`;
+        els.statDistance.textContent = stats.distance.toFixed(4);
+        els.statLines.textContent = String(gcode.trimEnd().split("\n").length);
+        els.gcode.value = gcode;
+        els.progressSlider.max = String(Math.max(0, points.length - 1));
+        els.progressSlider.value = String(progressIndex);
+        els.progressLabel.textContent = `${progressIndex} / ${Math.max(0, points.length - 1)}`;
+        drawPreview(points, stats, progressIndex);
+        updateSpeedBadge(progressIndex);
+
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+        blobUrl = URL.createObjectURL(new Blob([gcode], { type: "text/plain" }));
+        els.download.href = blobUrl;
+        els.download.download = cfg.filename.endsWith(".gcode") ? cfg.filename : `${cfg.filename}.gcode`;
+        els.download.toggleAttribute("aria-disabled", !ok);
+      } catch (error) {
+        showWarning(error instanceof Error ? error.message : "Generation failed. Check the input values.");
+      }
+    }
+
+    Object.entries(inputs).forEach(([id, input]) => {
+      if (id === "progressSlider") {
+        input.addEventListener("input", () => highlightProgress(Number(input.value)));
+      } else {
+        input.addEventListener("input", update);
+      }
+    });
+
+    inputs.pattern.addEventListener("change", () => {
+      syncVisibleControls();
+      inputs.filename.value = inputs.pattern.value === "diagonalScaffold"
+        ? diagonalScaffoldFilename
+        : inputs.pattern.value === "scaffold"
+          ? scaffoldFilename
+          : inputs.pattern.value === "circlePath"
+            ? circlePathFilename
+            : inputs.pattern.value === "sine"
+              ? sineFilename
+              : inputs.pattern.value === "archimedes"
+                ? archimedesFilename
+                : defaults.filename;
+      update();
+    });
+
+    els.reset.addEventListener("click", () => {
+      Object.entries(defaults).forEach(([key, value]) => {
+        if (inputs[key].type === "checkbox") inputs[key].checked = value;
+        else inputs[key].value = value;
+      });
+      syncVisibleControls();
+      update();
+    });
+
+    syncVisibleControls();
+    update();
+  </script>
+</body>
+</html>
