@@ -274,6 +274,21 @@
       display: none;
     }
 
+    .preview-toggles {
+      display: grid;
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      background: #fbfcfd;
+    }
+
+    .preview-toggles > span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
     textarea {
       display: block;
       width: 100%;
@@ -314,6 +329,17 @@
     .model-readout span {
       color: var(--muted);
       font-size: 12px;
+    }
+
+    footer {
+      margin-top: 20px;
+      padding: 14px 2px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    footer a {
+      color: var(--accent-dark);
     }
 
     @media (max-width: 900px) {
@@ -851,6 +877,22 @@
             <input id="compMaxCorrection" type="number" min="0.001" step="0.001" value="1">
           </label>
 
+          <div class="preview-toggles">
+            <span>Compensation preview layers</span>
+            <label class="check-label">
+              <input id="compShowDesired" type="checkbox" checked>
+              Desired path
+            </label>
+            <label class="check-label">
+              <input id="compShowNozzle" type="checkbox" checked>
+              Compensated nozzle path
+            </label>
+            <label class="check-label">
+              <input id="compShowPredicted" type="checkbox" checked>
+              Predicted fiber path
+            </label>
+          </div>
+
           <label>
             Filename
             <span>The downloaded G-code file name.</span>
@@ -887,6 +929,12 @@
         </div>
       </section>
     </div>
+
+    <footer>
+      Model credit: lag prediction is based on Hrynevich, A.; Liashenko, I.; Dalton, P. D. “Accurate Prediction of Melt Electrowritten Laydown Patterns from Simple Geometrical Considerations,” <em>Advanced Materials Technologies</em> 2020, 5, 2000772.
+      DOI: <a href="https://doi.org/10.1002/admt.202000772">10.1002/admt.202000772</a>.
+      Open-access record: <a href="https://www.deutsche-digitale-bibliothek.de/item/THLKAFIQJROESCBJIGG6JR6GIPRET34E">Deutsche Digitale Bibliothek</a>.
+    </footer>
   </main>
 
   <script>
@@ -965,6 +1013,9 @@
       compIterations: 5,
       compGain: 0.75,
       compMaxCorrection: 1,
+      compShowDesired: true,
+      compShowNozzle: true,
+      compShowPredicted: true,
       filename: "spirograph_horizontal_single_crossing_8_relative_xy.gcode"
     };
 
@@ -1113,7 +1164,10 @@
           step: numberValue("compStep"),
           iterations: integerValue("compIterations"),
           gain: numberValue("compGain"),
-          maxCorrection: numberValue("compMaxCorrection")
+          maxCorrection: numberValue("compMaxCorrection"),
+          showDesired: checkedValue("compShowDesired"),
+          showNozzle: checkedValue("compShowNozzle"),
+          showPredicted: checkedValue("compShowPredicted")
         },
         filename: inputs.filename.value.trim() || defaults.filename
       };
@@ -2099,25 +2153,44 @@
       ctx.lineCap = "round";
 
       if (overlay) {
-        ctx.strokeStyle = "#a7b1bd";
-        ctx.lineWidth = 1.2;
-        drawPath(ctx, overlay.desired, map, 0, overlay.desired.length - 1);
+        const visibility = overlay.visibility || {
+          desired: true,
+          nozzle: true,
+          predicted: true
+        };
 
-        ctx.strokeStyle = "#b43b3b";
-        ctx.lineWidth = 1.4;
-        drawPath(ctx, overlay.predicted, map, 0, overlay.predicted.length - 1);
+        if (visibility.desired) {
+          ctx.strokeStyle = "#a7b1bd";
+          ctx.lineWidth = 1.2;
+          drawPath(ctx, overlay.desired, map, 0, overlay.desired.length - 1);
+        }
 
-        ctx.strokeStyle = "#146c94";
-        ctx.lineWidth = 1.6;
-        drawPath(ctx, points, map, 0, points.length - 1);
+        if (visibility.predicted) {
+          ctx.strokeStyle = "#b43b3b";
+          ctx.lineWidth = 1.4;
+          drawPath(ctx, overlay.predicted, map, 0, overlay.predicted.length - 1);
+        }
 
-        ctx.fillStyle = "#53606d";
+        if (visibility.nozzle) {
+          ctx.strokeStyle = "#146c94";
+          ctx.lineWidth = 1.6;
+          drawPath(ctx, points, map, 0, points.length - 1);
+        }
+
         ctx.font = "14px ui-sans-serif, system-ui, sans-serif";
-        ctx.fillText("desired", offsetX + 10, height - offsetY - boundsHeight * scale + 22);
-        ctx.fillStyle = "#146c94";
-        ctx.fillText("compensated nozzle", offsetX + 86, height - offsetY - boundsHeight * scale + 22);
-        ctx.fillStyle = "#b43b3b";
-        ctx.fillText("predicted fiber", offsetX + 242, height - offsetY - boundsHeight * scale + 22);
+        let legendX = offsetX + 10;
+        const legendY = height - offsetY - boundsHeight * scale + 22;
+        const legendItems = [
+          ["desired", "#53606d", visibility.desired],
+          ["compensated nozzle", "#146c94", visibility.nozzle],
+          ["predicted fiber", "#b43b3b", visibility.predicted]
+        ];
+        legendItems.forEach(([label, color, visible]) => {
+          if (!visible) return;
+          ctx.fillStyle = color;
+          ctx.fillText(label, legendX, legendY);
+          legendX += ctx.measureText(label).width + 18;
+        });
       } else {
         ctx.strokeStyle = "#c6d2dc";
         ctx.lineWidth = 1.2;
@@ -2487,7 +2560,12 @@
           outputPoints = compensation.nozzle;
           previewOverlay = {
             desired: compensation.desired,
-            predicted: compensation.predicted
+            predicted: compensation.predicted,
+            visibility: {
+              desired: model.showDesired,
+              nozzle: model.showNozzle,
+              predicted: model.showPredicted
+            }
           };
           speedMap = new Map([[1, model.speed]]);
           statsLabelSuffix = `; error ${compensation.afterError.mean.toFixed(4)} mean / ${compensation.afterError.max.toFixed(4)} max`;
