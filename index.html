@@ -510,23 +510,22 @@
               </label>
 
               <label class="regular-only">
-                Loop bulge amplitude, mm
-                <span>Outward offset added to the later part of each U-turn. Use 0 to disable.</span>
-                <input id="scLoopBulgeAmplitude" type="number" min="0" max="10" step="0.01" value="0">
+                Loop ellipse diameter, mm
+                <span>Major diameter of the secondary ellipse laid onto the U-turn. Use 0 to disable.</span>
+                <input id="scLoopEllipseDiameter" type="number" min="0" max="20" step="0.01" value="0">
               </label>
 
               <label class="regular-only">
-                Loop bulge starts, %
-                <span>Arc progress where the compensating bulge begins.</span>
-                <input id="scLoopBulgeStart" type="range" min="0" max="95" step="1" value="40">
-                <output id="scLoopBulgeStartValue">40%</output>
+                Loop ellipse focal distance, mm
+                <span>Distance between ellipse focal points. 0 makes the secondary shape circular.</span>
+                <input id="scLoopEllipseFocusDistance" type="number" min="0" max="20" step="0.01" value="0">
               </label>
 
               <label class="regular-only">
-                Loop bulge width, %
-                <span>How much of the loop receives the sinusoidal bulge.</span>
-                <input id="scLoopBulgeWidth" type="range" min="5" max="100" step="1" value="60">
-                <output id="scLoopBulgeWidthValue">60%</output>
+                Loop ellipse starts from center, %
+                <span>0 starts at the U-turn center, negative starts before center, positive starts after center.</span>
+                <input id="scLoopEllipseStartOffset" type="range" min="-50" max="50" step="1" value="-10">
+                <output id="scLoopEllipseStartOffsetValue">-10%</output>
               </label>
 
               <label class="diagonal-only">
@@ -978,9 +977,9 @@
       scLoopRadius: 1.5,
       scLoopSegments: 9,
       scLoopOvercorrection: 1,
-      scLoopBulgeAmplitude: 0,
-      scLoopBulgeStart: 40,
-      scLoopBulgeWidth: 60,
+      scLoopEllipseDiameter: 0,
+      scLoopEllipseFocusDistance: 0,
+      scLoopEllipseStartOffset: -10,
       scLineAngle: 90,
       scTransferDepth: 5,
       cpCircleDiameter: 3.183,
@@ -1119,9 +1118,9 @@
           loopRadius: numberValue("scLoopRadius"),
           loopSegments: integerValue("scLoopSegments"),
           loopOvercorrection: numberValue("scLoopOvercorrection"),
-          loopBulgeAmplitude: numberValue("scLoopBulgeAmplitude"),
-          loopBulgeStart: numberValue("scLoopBulgeStart"),
-          loopBulgeWidth: numberValue("scLoopBulgeWidth"),
+          loopEllipseDiameter: numberValue("scLoopEllipseDiameter"),
+          loopEllipseFocusDistance: numberValue("scLoopEllipseFocusDistance"),
+          loopEllipseStartOffset: numberValue("scLoopEllipseStartOffset"),
           lineAngle: numberValue("scLineAngle"),
           transferDepth: numberValue("scTransferDepth"),
           diagonal: inputs.pattern.value === "diagonalScaffold"
@@ -1602,23 +1601,31 @@
       return lines.join("\n") + "\n";
     }
 
-    function loopBulgeAmount(progress, cfg) {
-      const amplitude = Math.max(0, cfg.loopBulgeAmplitude || 0);
-      if (amplitude === 0) return 0;
+    function loopEllipseBulgeAmount(progress, sweep, cfg) {
+      const diameter = Math.max(0, cfg.loopEllipseDiameter || 0);
+      if (diameter === 0) return 0;
 
-      const start = Math.max(0, Math.min(0.95, (cfg.loopBulgeStart || 0) / 100));
-      const width = Math.max(0.05, Math.min(1, (cfg.loopBulgeWidth || 100) / 100));
-      const end = Math.min(1, start + width);
-      const local = (progress - start) / Math.max(0.001, end - start);
+      const arcLength = Math.max(1e-9, sweep * cfg.loopRadius);
+      const start = Math.max(0, Math.min(0.999, 0.5 + (cfg.loopEllipseStartOffset || 0) / 100));
+      const activeProgress = Math.min(1 - start, diameter / arcLength);
+      if (activeProgress <= 0) return 0;
+
+      const local = (progress - start) / activeProgress;
       if (local <= 0 || local >= 1) return 0;
-      return amplitude * Math.sin(Math.PI * local);
+
+      const majorRadius = activeProgress * arcLength / 2;
+      const focusDistance = Math.max(0, Math.min(cfg.loopEllipseFocusDistance || 0, majorRadius * 2));
+      const focalRadius = focusDistance / 2;
+      const minorRadius = Math.sqrt(Math.max(0, majorRadius * majorRadius - focalRadius * focalRadius));
+      const normalizedX = 2 * local - 1;
+      return minorRadius * Math.sqrt(Math.max(0, 1 - normalizedX * normalizedX));
     }
 
-    function loopPointAt(angle, progress, cx, cfg) {
+    function loopPointAt(angle, progress, sweep, cx, cfg) {
       const r = cfg.loopRadius;
       const radialX = Math.cos(angle);
       const radialY = Math.sin(angle);
-      const bulge = loopBulgeAmount(progress, cfg);
+      const bulge = loopEllipseBulgeAmount(progress, sweep, cfg);
 
       return {
         x: cx + (r + bulge) * radialX,
@@ -1642,7 +1649,7 @@
       for (let i = 1; i <= cfg.loopSegments; i += 1) {
         const progress = i / cfg.loopSegments;
         const angle = startAngle + sweep * progress;
-        const { x: px, y: py } = loopPointAt(angle, progress, cx, cfg);
+        const { x: px, y: py } = loopPointAt(angle, progress, sweep, cx, cfg);
         const dx = (px - prevX) * direction;
         const dy = py - prevY;
         moves.push(axis === "x" ? [dx, dy] : [dy, dx]);
@@ -1658,7 +1665,7 @@
         for (let i = 1; i <= extraSegments; i += 1) {
           const angle = endAngle + extraSweep * i / extraSegments;
           const progress = 1 + extraSweep * i / extraSegments / sweep;
-          const { x: px, y: py } = loopPointAt(angle, progress, cx, cfg);
+          const { x: px, y: py } = loopPointAt(angle, progress, sweep, cx, cfg);
           const dx = (px - prevX) * direction;
           const dy = py - prevY;
           moves.push(axis === "x" ? [dx, dy] : [dy, dx]);
@@ -2510,9 +2517,10 @@
         if (sc.spacing > 2 * sc.loopRadius) messages.push("Line spacing cannot exceed loop diameter.");
         if (sc.loopSegments < 3) messages.push("Loop segments must be at least 3.");
         if (!Number.isFinite(sc.loopOvercorrection) || sc.loopOvercorrection < 0 || sc.loopOvercorrection > 10) messages.push("Loop overcorrection must be between 0 and 10 mm.");
-        if (!Number.isFinite(sc.loopBulgeAmplitude) || sc.loopBulgeAmplitude < 0 || sc.loopBulgeAmplitude > 10) messages.push("Loop bulge amplitude must be between 0 and 10 mm.");
-        if (!Number.isFinite(sc.loopBulgeStart) || sc.loopBulgeStart < 0 || sc.loopBulgeStart > 95) messages.push("Loop bulge start must be between 0 and 95%.");
-        if (!Number.isFinite(sc.loopBulgeWidth) || sc.loopBulgeWidth < 5 || sc.loopBulgeWidth > 100) messages.push("Loop bulge width must be between 5 and 100%.");
+        if (!Number.isFinite(sc.loopEllipseDiameter) || sc.loopEllipseDiameter < 0 || sc.loopEllipseDiameter > 20) messages.push("Loop ellipse diameter must be between 0 and 20 mm.");
+        if (!Number.isFinite(sc.loopEllipseFocusDistance) || sc.loopEllipseFocusDistance < 0 || sc.loopEllipseFocusDistance > 20) messages.push("Loop ellipse focal distance must be between 0 and 20 mm.");
+        if (sc.loopEllipseDiameter > 0 && sc.loopEllipseFocusDistance > sc.loopEllipseDiameter) messages.push("Loop ellipse focal distance cannot exceed the ellipse diameter.");
+        if (!Number.isFinite(sc.loopEllipseStartOffset) || sc.loopEllipseStartOffset < -50 || sc.loopEllipseStartOffset > 50) messages.push("Loop ellipse start offset must be between -50 and 50%.");
         if (sc.diagonal && (sc.lineAngle < 10 || sc.lineAngle > 90)) messages.push("Crossing angle must be between 10 and 90 degrees.");
         if (sc.transferDepth < 0) messages.push("Transfer depth cannot be negative.");
         if (lineCountY < 2 || lineCountX < 2) messages.push("Scaffold is too small for the selected line spacing.");
@@ -2588,10 +2596,8 @@
         const cfg = settings();
         const angleOutput = document.querySelector("#scLineAngleValue");
         if (angleOutput) angleOutput.textContent = `${cfg.scaffold.lineAngle.toFixed(0)}°`;
-        const bulgeStartOutput = document.querySelector("#scLoopBulgeStartValue");
-        if (bulgeStartOutput) bulgeStartOutput.textContent = `${cfg.scaffold.loopBulgeStart.toFixed(0)}%`;
-        const bulgeWidthOutput = document.querySelector("#scLoopBulgeWidthValue");
-        if (bulgeWidthOutput) bulgeWidthOutput.textContent = `${cfg.scaffold.loopBulgeWidth.toFixed(0)}%`;
+        const ellipseStartOffsetOutput = document.querySelector("#scLoopEllipseStartOffsetValue");
+        if (ellipseStartOffsetOutput) ellipseStartOffsetOutput.textContent = `${cfg.scaffold.loopEllipseStartOffset.toFixed(0)}%`;
         if (inputs.calGapRange.value !== inputs.calGap.value) inputs.calGapRange.value = inputs.calGap.value;
         const calibration = updateCalibrationReadout();
 
