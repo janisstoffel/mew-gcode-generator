@@ -298,6 +298,24 @@
       display: block;
     }
 
+    .model-readout {
+      display: grid;
+      gap: 3px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      background: #fbfcfd;
+    }
+
+    .model-readout strong {
+      color: var(--accent-dark);
+    }
+
+    .model-readout span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     @media (max-width: 900px) {
       main {
         width: min(100vw - 20px, 720px);
@@ -344,6 +362,7 @@
               <option value="circlePath">Connected circles on path</option>
               <option value="sine">Sinusoidal curves</option>
               <option value="archimedes">Archimedes spiral</option>
+              <option value="lagCalibration">Lag calibration</option>
             </select>
           </label>
 
@@ -655,6 +674,60 @@
             </div>
           </div>
 
+          <div class="pattern-fields" data-pattern-fields="lagCalibration" hidden>
+            <div class="control-grid">
+              <label>
+                Preset name
+                <span>Name used by the compensation preset selector.</span>
+                <input id="calPresetName" type="text" value="PCL default calibration">
+              </label>
+
+              <label>
+                Measured lag, mm
+                <span>Horizontal lag measured between nozzle position and deposited contact point.</span>
+                <input id="calMeasuredLag" type="number" min="0.001" step="0.001" value="1">
+              </label>
+
+              <label>
+                Collector/model speed, mm/min
+                <span>Speed used during the measured lag observation.</span>
+                <input id="calSpeed" type="number" min="0.001" step="1" value="300">
+              </label>
+
+              <label>
+                Critical translation speed, mm/min
+                <span>CTS measured for this process condition.</span>
+                <input id="calCts" type="number" min="0.001" step="1" value="200">
+              </label>
+
+              <label>
+                Stable lag exponent b
+                <span>Paper default is 0.304; calibration fits coefficient a.</span>
+                <input id="calB" type="number" min="0.001" step="0.001" value="0.304">
+              </label>
+
+              <label>
+                Nozzle diameter, mm
+                <span>Used for the XZ scale sketch.</span>
+                <input id="calNozzleDiameter" type="number" min="0.01" step="0.01" value="0.25">
+              </label>
+
+              <label>
+                Nozzle-to-collector distance, mm
+                <span>Used for the XZ scale sketch.</span>
+                <input id="calGapRange" type="range" min="0.1" max="10" step="0.1" value="2">
+                <input id="calGap" type="number" min="0.1" step="0.1" value="2">
+              </label>
+
+              <div class="model-readout">
+                <strong id="calAOutput">a = 10.02 mm</strong>
+                <span id="calStatus">Ready to save calibration.</span>
+              </div>
+
+              <button id="calSave" type="button">Save preset</button>
+            </div>
+          </div>
+
           <div class="section-title">Output Axes</div>
           <label>
             G-code X axis uses
@@ -714,6 +787,68 @@
             Max speed, mm/min
             <span>Final feedrate reached across completed curves, circles, or squares.</span>
             <input id="speedMax" type="number" min="0.001" step="1" value="1200">
+          </label>
+
+          <div class="section-title">MEW Compensation</div>
+          <label class="check-label">
+            <input id="compEnabled" type="checkbox">
+            Generate compensated code
+          </label>
+
+          <label>
+            Calibration preset
+            <span>Saved from the Lag calibration tab.</span>
+            <select id="compPreset">
+              <option value="">Manual values</option>
+            </select>
+          </label>
+
+          <label>
+            Critical translation speed, mm/min
+            <span>Default 200 mm/min.</span>
+            <input id="compCts" type="number" min="0.001" step="1" value="200">
+          </label>
+
+          <label>
+            Collector/model speed, mm/min
+            <span>Compensation assumes a constant model speed.</span>
+            <input id="compSpeed" type="number" min="0.001" step="1" value="300">
+          </label>
+
+          <label>
+            Stable lag coefficient a, mm
+            <span>Paper default is 10.02 mm.</span>
+            <input id="compA" type="number" min="0.001" step="0.001" value="10.02">
+          </label>
+
+          <label>
+            Stable lag exponent b
+            <span>Paper default is 0.304.</span>
+            <input id="compB" type="number" min="0.001" step="0.001" value="0.304">
+          </label>
+
+          <label>
+            Model step, mm
+            <span>Resampling resolution for prediction and compensation.</span>
+            <input id="compStep" type="number" min="0.001" step="0.001" value="0.05">
+          </label>
+
+          <label>
+            Compensation iterations
+            <span>Repeated prediction/correction passes.</span>
+            <input id="compIterations" type="number" min="0" max="50" step="1" value="5">
+          </label>
+
+          <label>
+            Correction gain
+            <span>Fraction of predicted error applied per iteration.</span>
+            <input id="compGain" type="number" min="0.001" max="2" step="0.001" value="0.75">
+          </label>
+
+          <label>
+            Max correction per iteration, mm
+            <span>Caps single-point movement per compensation pass.</span>
+            <input id="compMaxCorrection" type="number" min="0.001" step="0.001" value="1">
           </label>
 
           <label>
@@ -804,6 +939,14 @@
       arcShiftY: 0,
       arcSegmentsPerTurn: 72,
       arcReverse: false,
+      calPresetName: "PCL default calibration",
+      calMeasuredLag: 1,
+      calSpeed: 300,
+      calCts: 200,
+      calB: 0.304,
+      calNozzleDiameter: 0.25,
+      calGapRange: 2,
+      calGap: 2,
       axisXSource: "x",
       axisXSign: "1",
       axisYSource: "y",
@@ -812,6 +955,16 @@
       speedRampEnabled: false,
       speedMin: 100,
       speedMax: 1200,
+      compEnabled: false,
+      compPreset: "",
+      compCts: 200,
+      compSpeed: 300,
+      compA: 10.02,
+      compB: 0.304,
+      compStep: 0.05,
+      compIterations: 5,
+      compGain: 0.75,
+      compMaxCorrection: 1,
       filename: "spirograph_horizontal_single_crossing_8_relative_xy.gcode"
     };
 
@@ -838,6 +991,9 @@
       statLines: document.querySelector("#statLines"),
       progressSlider: document.querySelector("#progressSlider"),
       progressLabel: document.querySelector("#progressLabel"),
+      calAOutput: document.querySelector("#calAOutput"),
+      calStatus: document.querySelector("#calStatus"),
+      calSave: document.querySelector("#calSave"),
       patternFields: [...document.querySelectorAll("[data-pattern-fields]")],
       diagonalOnly: [...document.querySelectorAll(".diagonal-only")],
       regularOnly: [...document.querySelectorAll(".regular-only")]
@@ -850,6 +1006,8 @@
     let currentSpeedMap = new Map();
     let currentSpeedBoundaries = [];
     let currentSpeedEnabled = false;
+    let currentPreviewOverlay = null;
+    let lagPresets = [];
 
     function numberValue(id) {
       return Number(inputs[id].value);
@@ -924,6 +1082,15 @@
           segmentsPerTurn: integerValue("arcSegmentsPerTurn"),
           reverse: checkedValue("arcReverse")
         },
+        calibration: {
+          presetName: inputs.calPresetName.value.trim() || "MEW calibration",
+          measuredLag: numberValue("calMeasuredLag"),
+          speed: numberValue("calSpeed"),
+          cts: numberValue("calCts"),
+          b: numberValue("calB"),
+          nozzleDiameter: numberValue("calNozzleDiameter"),
+          gap: numberValue("calGap")
+        },
         axes: {
           xSource: inputs.axisXSource.value,
           xSign: Number(inputs.axisXSign.value),
@@ -935,6 +1102,18 @@
           enabled: checkedValue("speedRampEnabled"),
           min: numberValue("speedMin"),
           max: numberValue("speedMax")
+        },
+        compensation: {
+          enabled: checkedValue("compEnabled"),
+          preset: inputs.compPreset.value,
+          cts: numberValue("compCts"),
+          speed: numberValue("compSpeed"),
+          a: numberValue("compA"),
+          b: numberValue("compB"),
+          step: numberValue("compStep"),
+          iterations: integerValue("compIterations"),
+          gain: numberValue("compGain"),
+          maxCorrection: numberValue("compMaxCorrection")
         },
         filename: inputs.filename.value.trim() || defaults.filename
       };
@@ -959,6 +1138,79 @@
       els.regularOnly.forEach((section) => {
         section.hidden = inputs.pattern.value === "diagonalScaffold";
       });
+    }
+
+    function loadLagPresets() {
+      try {
+        const raw = localStorage.getItem("mewLagPresets");
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.filter((preset) => preset && preset.name) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function persistLagPresets() {
+      try {
+        localStorage.setItem("mewLagPresets", JSON.stringify(lagPresets));
+      } catch {
+        els.calStatus.textContent = "Could not save preset in this browser.";
+      }
+    }
+
+    function populatePresetSelect(selectedName = inputs.compPreset.value) {
+      inputs.compPreset.innerHTML = '<option value="">Manual values</option>';
+      lagPresets.forEach((preset) => {
+        const option = document.createElement("option");
+        option.value = preset.name;
+        option.textContent = preset.name;
+        inputs.compPreset.appendChild(option);
+      });
+      inputs.compPreset.value = lagPresets.some((preset) => preset.name === selectedName) ? selectedName : "";
+    }
+
+    function applyPresetToCompensation(name) {
+      const preset = lagPresets.find((item) => item.name === name);
+      if (!preset) return;
+
+      inputs.compCts.value = preset.cts;
+      inputs.compSpeed.value = preset.speed;
+      inputs.compA.value = preset.a;
+      inputs.compB.value = preset.b;
+    }
+
+    function updateCalibrationReadout() {
+      const cfg = settings().calibration;
+      const fittedA = calibrationCoefficient(cfg.measuredLag, cfg.speed, cfg.cts, cfg.b);
+      const valid = Number.isFinite(fittedA) && fittedA > 0 && cfg.measuredLag > 0 && cfg.speed > cfg.cts && cfg.cts > 0 && cfg.b > 0;
+
+      els.calAOutput.textContent = valid ? `a = ${fittedA.toFixed(4)} mm` : "a = invalid";
+      els.calStatus.textContent = valid
+        ? `SR ${(cfg.speed / cfg.cts).toFixed(3)}; save to use in compensation.`
+        : "Measured lag, speed, CTS, and exponent must be valid; speed must exceed CTS.";
+      return { ...cfg, fittedA, valid };
+    }
+
+    function saveCalibrationPreset() {
+      const calibration = updateCalibrationReadout();
+      if (!calibration.valid) return;
+
+      const preset = {
+        name: calibration.presetName,
+        cts: calibration.cts,
+        speed: calibration.speed,
+        a: calibration.fittedA,
+        b: calibration.b,
+        nozzleDiameter: calibration.nozzleDiameter,
+        gap: calibration.gap
+      };
+      lagPresets = lagPresets.filter((item) => item.name !== preset.name);
+      lagPresets.push(preset);
+      persistLagPresets();
+      populatePresetSelect(preset.name);
+      applyPresetToCompensation(preset.name);
+      els.calStatus.textContent = `Saved "${preset.name}" and loaded it into compensation.`;
+      update();
     }
 
     function generateFigure8(cfg, decimals) {
@@ -1622,6 +1874,165 @@
       });
     }
 
+    function stableLag(speedRatio, model) {
+      if (!Number.isFinite(speedRatio) || speedRatio <= 1) return 0;
+      return Math.max(0, model.a * (1 - Math.pow(speedRatio, -model.b)));
+    }
+
+    function contactPointSpeed(lag, model) {
+      if (!Number.isFinite(lag) || lag <= 0) return model.cts;
+      const safeLag = Math.min(lag, model.a * 0.999999);
+      return model.cts * Math.pow(1 - safeLag / model.a, -1 / model.b);
+    }
+
+    function calibrationCoefficient(measuredLag, speed, cts, b) {
+      const speedRatio = speed / cts;
+      const denominator = 1 - Math.pow(speedRatio, -b);
+      return denominator > 0 ? measuredLag / denominator : NaN;
+    }
+
+    function distanceBetween(a, b) {
+      return Math.hypot(a[0] - b[0], a[1] - b[1]);
+    }
+
+    function clampVector(dx, dy, maxLength) {
+      const length = Math.hypot(dx, dy);
+      if (!Number.isFinite(length) || length === 0 || length <= maxLength) return [dx, dy];
+      const scale = maxLength / length;
+      return [dx * scale, dy * scale];
+    }
+
+    function resamplePath(points, step) {
+      if (points.length < 2) return points.slice();
+
+      const result = [points[0].slice()];
+      let carried = 0;
+      let previous = points[0];
+
+      for (let i = 1; i < points.length; i += 1) {
+        const current = points[i];
+        const dx = current[0] - previous[0];
+        const dy = current[1] - previous[1];
+        const segmentLength = Math.hypot(dx, dy);
+
+        if (segmentLength > 0) {
+          let distanceToNext = step - carried;
+          while (distanceToNext <= segmentLength + 1e-9) {
+            const t = distanceToNext / segmentLength;
+            result.push([previous[0] + dx * t, previous[1] + dy * t]);
+            distanceToNext += step;
+          }
+          carried = (carried + segmentLength) % step;
+        }
+
+        previous = current;
+      }
+
+      const last = points[points.length - 1];
+      if (distanceBetween(result[result.length - 1], last) > 1e-9) result.push(last.slice());
+      return result;
+    }
+
+    function simulatedErrorStats(desired, predicted) {
+      const count = Math.min(desired.length, predicted.length);
+      let max = 0;
+      let sum = 0;
+
+      for (let i = 0; i < count; i += 1) {
+        const error = distanceBetween(desired[i], predicted[i]);
+        max = Math.max(max, error);
+        sum += error;
+      }
+
+      return {
+        max,
+        mean: count ? sum / count : 0
+      };
+    }
+
+    function simulateJetLag(nozzlePoints, model) {
+      if (nozzlePoints.length < 2) {
+        return {
+          predicted: nozzlePoints.slice(),
+          errorStats: { max: 0, mean: 0 }
+        };
+      }
+
+      const predicted = [nozzlePoints[0].slice()];
+      let jcp = nozzlePoints[0].slice();
+      let currentLag = 0;
+
+      for (let i = 1; i < nozzlePoints.length; i += 1) {
+        const npNext = nozzlePoints[i];
+        const npPrev = nozzlePoints[i - 1];
+        const unitMove = Math.max(distanceBetween(npPrev, npNext), model.step);
+        const dt = unitMove / model.speed;
+        const rayX = npNext[0] - jcp[0];
+        const rayY = npNext[1] - jcp[1];
+        const rayLength = Math.hypot(rayX, rayY);
+
+        if (rayLength === 0 || !Number.isFinite(rayLength)) {
+          predicted.push(jcp.slice());
+          currentLag = distanceBetween(npNext, jcp);
+          continue;
+        }
+
+        const ux = rayX / rayLength;
+        const uy = rayY / rayLength;
+        const movingAwaySpeed = (rayLength - currentLag) / dt;
+        const speedRatio = movingAwaySpeed / model.cts;
+        let nextLag = 0;
+
+        if (speedRatio > 1) {
+          const targetLag = Math.min(stableLag(speedRatio, model), rayLength);
+          const jcpSpeed = Math.min(contactPointSpeed(currentLag, model), movingAwaySpeed);
+          const moveDistance = Math.max(0, Math.min(rayLength, jcpSpeed * dt));
+          nextLag = Math.max(0, rayLength - moveDistance);
+          if (nextLag > targetLag) nextLag = targetLag;
+        } else {
+          nextLag = Math.max(0, Math.min(rayLength, currentLag - model.cts * dt));
+        }
+
+        jcp = [
+          npNext[0] - ux * nextLag,
+          npNext[1] - uy * nextLag
+        ];
+        currentLag = nextLag;
+        predicted.push(jcp.slice());
+      }
+
+      return {
+        predicted,
+        errorStats: simulatedErrorStats(nozzlePoints, predicted)
+      };
+    }
+
+    function compensatePath(desiredPoints, model) {
+      const desired = resamplePath(desiredPoints, model.step);
+      let nozzle = desired.map((point) => point.slice());
+      const before = simulateJetLag(nozzle, model);
+
+      for (let iteration = 0; iteration < model.iterations; iteration += 1) {
+        const simulated = simulateJetLag(nozzle, model);
+        for (let i = 1; i < nozzle.length; i += 1) {
+          const errorX = desired[i][0] - simulated.predicted[i][0];
+          const errorY = desired[i][1] - simulated.predicted[i][1];
+          const [dx, dy] = clampVector(errorX * model.gain, errorY * model.gain, model.maxCorrection);
+          nozzle[i][0] += dx;
+          nozzle[i][1] += dy;
+        }
+      }
+
+      const after = simulateJetLag(nozzle, model);
+      return {
+        desired,
+        nozzle,
+        predicted: after.predicted,
+        beforeError: before.errorStats,
+        afterError: simulatedErrorStats(desired, after.predicted)
+      };
+    }
+
     function drawPath(ctx, points, map, startIndex, endIndex) {
       if (!points.length || endIndex < startIndex) return;
       ctx.beginPath();
@@ -1633,7 +2044,7 @@
       ctx.stroke();
     }
 
-    function drawPreview(points, stats, progressIndex = points.length - 1) {
+    function drawPreview(points, stats, progressIndex = points.length - 1, overlay = null) {
       const canvas = els.canvas;
       const ctx = canvas.getContext("2d");
       const width = canvas.width;
@@ -1684,17 +2095,38 @@
 
       const clampedProgress = Math.max(0, Math.min(points.length - 1, progressIndex));
 
-      ctx.strokeStyle = "#c6d2dc";
-      ctx.lineWidth = 1.2;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
-      drawPath(ctx, points, map, 0, points.length - 1);
 
-      ctx.strokeStyle = "#146c94";
-      ctx.lineWidth = 1.6;
-      ctx.lineJoin = "round";
-      ctx.lineCap = "round";
-      drawPath(ctx, points, map, 0, clampedProgress);
+      if (overlay) {
+        ctx.strokeStyle = "#a7b1bd";
+        ctx.lineWidth = 1.2;
+        drawPath(ctx, overlay.desired, map, 0, overlay.desired.length - 1);
+
+        ctx.strokeStyle = "#b43b3b";
+        ctx.lineWidth = 1.4;
+        drawPath(ctx, overlay.predicted, map, 0, overlay.predicted.length - 1);
+
+        ctx.strokeStyle = "#146c94";
+        ctx.lineWidth = 1.6;
+        drawPath(ctx, points, map, 0, points.length - 1);
+
+        ctx.fillStyle = "#53606d";
+        ctx.font = "14px ui-sans-serif, system-ui, sans-serif";
+        ctx.fillText("desired", offsetX + 10, height - offsetY - boundsHeight * scale + 22);
+        ctx.fillStyle = "#146c94";
+        ctx.fillText("compensated nozzle", offsetX + 86, height - offsetY - boundsHeight * scale + 22);
+        ctx.fillStyle = "#b43b3b";
+        ctx.fillText("predicted fiber", offsetX + 242, height - offsetY - boundsHeight * scale + 22);
+      } else {
+        ctx.strokeStyle = "#c6d2dc";
+        ctx.lineWidth = 1.2;
+        drawPath(ctx, points, map, 0, points.length - 1);
+
+        ctx.strokeStyle = "#146c94";
+        ctx.lineWidth = 1.6;
+        drawPath(ctx, points, map, 0, clampedProgress);
+      }
 
       const start = map(points[0]);
       const end = map(points[points.length - 1]);
@@ -1714,6 +2146,109 @@
       ctx.fill();
     }
 
+    function drawCalibrationPreview(calibration) {
+      const canvas = els.canvas;
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      const lag = Math.max(0, calibration.measuredLag);
+      const gap = Math.max(0.1, calibration.gap);
+      const nozzleDiameter = Math.max(0.01, calibration.nozzleDiameter);
+      const worldWidth = Math.max(4, lag + nozzleDiameter * 4);
+      const worldHeight = Math.max(3, gap + nozzleDiameter * 5);
+      const scale = Math.min((width - 120) / worldWidth, (height - 120) / worldHeight);
+      const nozzleX = 90 + lag * scale;
+      const collectorY = height - 70;
+      const nozzleY = collectorY - gap * scale;
+      const contactX = nozzleX - lag * scale;
+      const contactY = collectorY;
+      const nozzleRadius = Math.max(4, nozzleDiameter * scale / 2);
+      const fittedA = calibrationCoefficient(lag, calibration.speed, calibration.cts, calibration.b);
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#fbfcfd";
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.strokeStyle = "#53606d";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(40, collectorY);
+      ctx.lineTo(width - 40, collectorY);
+      ctx.stroke();
+      ctx.fillStyle = "#53606d";
+      ctx.font = "16px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillText("collector", width - 130, collectorY - 12);
+
+      ctx.fillStyle = "#1f2933";
+      ctx.fillRect(nozzleX - nozzleRadius, nozzleY - nozzleRadius * 4, nozzleRadius * 2, nozzleRadius * 4);
+      ctx.beginPath();
+      ctx.moveTo(nozzleX - nozzleRadius * 1.3, nozzleY);
+      ctx.lineTo(nozzleX + nozzleRadius * 1.3, nozzleY);
+      ctx.lineTo(nozzleX, nozzleY + nozzleRadius * 2.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillText("nozzle", nozzleX + nozzleRadius * 2, nozzleY - nozzleRadius * 2);
+
+      ctx.strokeStyle = "#146c94";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(nozzleX, nozzleY + nozzleRadius * 2.2);
+      ctx.bezierCurveTo(
+        nozzleX - lag * scale * 0.12,
+        nozzleY + gap * scale * 0.28,
+        contactX + lag * scale * 0.25,
+        collectorY - gap * scale * 0.28,
+        contactX,
+        contactY
+      );
+      ctx.stroke();
+
+      ctx.fillStyle = "#b43b3b";
+      ctx.beginPath();
+      ctx.arc(contactX, contactY, 7, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillText("JCP", contactX + 10, contactY - 10);
+
+      ctx.strokeStyle = "#d98324";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 5]);
+      ctx.beginPath();
+      ctx.moveTo(contactX, collectorY + 24);
+      ctx.lineTo(nozzleX, collectorY + 24);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#d98324";
+      ctx.fillText(`lag ${lag.toFixed(3)} mm`, (contactX + nozzleX) / 2 - 45, collectorY + 48);
+
+      ctx.strokeStyle = "#7b8794";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(nozzleX + 44, nozzleY);
+      ctx.lineTo(nozzleX + 44, collectorY);
+      ctx.stroke();
+      ctx.fillStyle = "#7b8794";
+      ctx.fillText(`gap ${gap.toFixed(2)} mm`, nozzleX + 52, (nozzleY + collectorY) / 2);
+
+      const rulerLength = Math.min(5, Math.max(1, Math.floor(worldWidth / 2)));
+      const rulerX = 60;
+      const rulerY = 45;
+      ctx.strokeStyle = "#1f2933";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(rulerX, rulerY);
+      ctx.lineTo(rulerX + rulerLength * scale, rulerY);
+      ctx.moveTo(rulerX, rulerY - 6);
+      ctx.lineTo(rulerX, rulerY + 6);
+      ctx.moveTo(rulerX + rulerLength * scale, rulerY - 6);
+      ctx.lineTo(rulerX + rulerLength * scale, rulerY + 6);
+      ctx.stroke();
+      ctx.fillStyle = "#1f2933";
+      ctx.fillText(`${rulerLength} mm`, rulerX, rulerY + 24);
+
+      ctx.fillStyle = Number.isFinite(fittedA) ? "#0f536f" : "#9a5b00";
+      ctx.fillText(Number.isFinite(fittedA) ? `fitted a = ${fittedA.toFixed(4)} mm` : "invalid calibration inputs", 60, height - 25);
+    }
+
     function validate(cfg, stats, render = true) {
       const messages = [];
       const decimalsValid = Number.isFinite(cfg.decimals) && cfg.decimals >= 1 && cfg.decimals <= 6;
@@ -1724,8 +2259,28 @@
         if (!Number.isFinite(cfg.speed.max) || cfg.speed.max <= 0) messages.push("Max speed must be greater than 0.");
         if (Number.isFinite(cfg.speed.min) && Number.isFinite(cfg.speed.max) && cfg.speed.max < cfg.speed.min) messages.push("Max speed must be greater than or equal to min speed.");
       }
+      if (cfg.compensation.enabled && cfg.pattern !== "lagCalibration") {
+        const comp = cfg.compensation;
+        if (!Number.isFinite(comp.cts) || comp.cts <= 0) messages.push("Compensation CTS must be greater than 0.");
+        if (!Number.isFinite(comp.speed) || comp.speed <= 0) messages.push("Compensation speed must be greater than 0.");
+        if (Number.isFinite(comp.speed) && Number.isFinite(comp.cts) && comp.speed <= comp.cts) messages.push("MEW compensation requires collector/model speed above CTS.");
+        if (!Number.isFinite(comp.a) || comp.a <= 0) messages.push("Stable lag coefficient a must be greater than 0.");
+        if (!Number.isFinite(comp.b) || comp.b <= 0) messages.push("Stable lag exponent b must be greater than 0.");
+        if (!Number.isFinite(comp.step) || comp.step <= 0) messages.push("Model step must be greater than 0.");
+        if (!Number.isFinite(comp.iterations) || comp.iterations < 0) messages.push("Compensation iterations cannot be negative.");
+        if (!Number.isFinite(comp.gain) || comp.gain <= 0) messages.push("Correction gain must be greater than 0.");
+        if (!Number.isFinite(comp.maxCorrection) || comp.maxCorrection <= 0) messages.push("Max correction must be greater than 0.");
+      }
 
-      if (cfg.pattern === "figure8") {
+      if (cfg.pattern === "lagCalibration") {
+        const cal = cfg.calibration;
+        if (!Number.isFinite(cal.measuredLag) || cal.measuredLag <= 0) messages.push("Measured lag must be greater than 0.");
+        if (!Number.isFinite(cal.cts) || cal.cts <= 0) messages.push("Calibration CTS must be greater than 0.");
+        if (!Number.isFinite(cal.speed) || cal.speed <= cal.cts) messages.push("Calibration speed must be greater than CTS.");
+        if (!Number.isFinite(cal.b) || cal.b <= 0) messages.push("Calibration exponent b must be greater than 0.");
+        if (!Number.isFinite(cal.nozzleDiameter) || cal.nozzleDiameter <= 0) messages.push("Nozzle diameter must be greater than 0.");
+        if (!Number.isFinite(cal.gap) || cal.gap <= 0) messages.push("Nozzle-to-collector distance must be greater than 0.");
+      } else if (cfg.pattern === "figure8") {
         const fig = cfg.fig;
         if (!Number.isFinite(fig.diameter) || fig.diameter <= 0) messages.push("Lobe diameter must be greater than 0.");
         if (!Number.isFinite(fig.angle) || fig.angle <= 0 || fig.angle >= 180) messages.push("Crossing angle must be between 0 and 180 degrees.");
@@ -1852,7 +2407,7 @@
       els.progressSlider.max = String(Math.max(0, currentPoints.length - 1));
       els.progressSlider.value = String(clamped);
       els.progressLabel.textContent = `${clamped} / ${Math.max(0, currentPoints.length - 1)}`;
-      drawPreview(currentPoints, currentStats, clamped);
+      drawPreview(currentPoints, currentStats, clamped, currentPreviewOverlay);
       updateSpeedBadge(clamped);
 
       const lineIndex = Math.min(clamped, currentGcodeLines.length - 1);
@@ -1869,8 +2424,33 @@
         const cfg = settings();
         const angleOutput = document.querySelector("#scLineAngleValue");
         if (angleOutput) angleOutput.textContent = `${cfg.scaffold.lineAngle.toFixed(0)}°`;
+        if (inputs.calGapRange.value !== inputs.calGap.value) inputs.calGapRange.value = inputs.calGap.value;
+        const calibration = updateCalibrationReadout();
 
         if (!validate(cfg, null)) {
+          return;
+        }
+
+        if (cfg.pattern === "lagCalibration") {
+          drawCalibrationPreview(cfg.calibration);
+          currentPoints = [[0, 0]];
+          currentStats = { minX: 0, maxX: 1, minY: 0, maxY: 1, width: 1, height: 1, distance: 0 };
+          currentPreviewOverlay = null;
+          currentGcodeLines = ["Calibration mode"];
+          currentSpeedMap = new Map();
+          currentSpeedBoundaries = [];
+          currentSpeedEnabled = false;
+          els.statReps.textContent = "cal";
+          els.statBounds.textContent = `${cfg.calibration.measuredLag.toFixed(3)} lag`;
+          els.statDistance.textContent = `${cfg.calibration.gap.toFixed(2)} gap`;
+          els.statLines.textContent = Number.isFinite(calibration.fittedA) ? `a ${calibration.fittedA.toFixed(3)}` : "invalid";
+          els.gcode.value = "Lag calibration mode\nSave a preset to load these values into MEW compensation.\n";
+          els.progressSlider.max = "0";
+          els.progressSlider.value = "0";
+          els.progressLabel.textContent = "0 / 0";
+          updateSpeedBadge(0);
+          els.download.href = "#";
+          els.download.toggleAttribute("aria-disabled", true);
           return;
         }
 
@@ -1889,28 +2469,66 @@
           throw new Error("Generated path contains invalid coordinates.");
         }
 
-        const speedMap = speedMapFromBoundaries(result.speedBoundaryPoints, cfg.speed);
-        const gcode = generateRelativeGcodeWithSpeed(points, cfg.decimals, speedMap);
-        const stats = pathStats(points);
+        let outputPoints = points;
+        let previewOverlay = null;
+        let statsLabelSuffix = "";
+        let speedMap = speedMapFromBoundaries(result.speedBoundaryPoints, cfg.speed);
+        const infoMessages = [];
+
+        if (cfg.compensation.enabled) {
+          const model = cfg.compensation;
+          const compensation = compensatePath(points, model);
+          if (!compensation.nozzle.length || compensation.nozzle.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
+            throw new Error("Compensation generated invalid coordinates.");
+          }
+          if (compensation.nozzle.length > 200000) {
+            throw new Error("Compensation generated too many points; increase model step.");
+          }
+          outputPoints = compensation.nozzle;
+          previewOverlay = {
+            desired: compensation.desired,
+            predicted: compensation.predicted
+          };
+          speedMap = new Map([[1, model.speed]]);
+          statsLabelSuffix = `; error ${compensation.afterError.mean.toFixed(4)} mean / ${compensation.afterError.max.toFixed(4)} max`;
+
+          if (cfg.speed.enabled) {
+            infoMessages.push("Speed ramp is enabled, but compensation assumes constant model speed and uses the compensation speed.");
+          }
+          if (compensation.afterError.max > compensation.beforeError.max && compensation.beforeError.max > 0) {
+            infoMessages.push("Compensation ran, but predicted error did not improve. Check model parameters.");
+          }
+        }
+
+        const gcode = generateRelativeGcodeWithSpeed(outputPoints, cfg.decimals, speedMap);
+        const statsPoints = previewOverlay
+          ? outputPoints.concat(previewOverlay.desired, previewOverlay.predicted)
+          : outputPoints;
+        const stats = pathStats(statsPoints);
         const ok = validate(cfg, stats);
-        currentPoints = points;
+        if (ok && infoMessages.length) {
+          els.warning.textContent = infoMessages.join(" ");
+          els.warning.classList.add("visible");
+        }
+        currentPoints = outputPoints;
         currentStats = stats;
         currentGcodeLines = gcode.trimEnd().split("\n");
         currentSpeedMap = speedMap;
         currentSpeedBoundaries = [...speedMap.entries()].sort((a, b) => a[0] - b[0]);
-        currentSpeedEnabled = cfg.speed.enabled;
+        currentSpeedEnabled = cfg.speed.enabled || cfg.compensation.enabled;
+        currentPreviewOverlay = previewOverlay;
         const previousProgress = Number(els.progressSlider.value || 0);
-        const progressIndex = Math.min(previousProgress, Math.max(0, points.length - 1));
+        const progressIndex = Math.min(previousProgress, Math.max(0, outputPoints.length - 1));
 
         els.statReps.textContent = String(repetitions);
         els.statBounds.textContent = `${stats.width.toFixed(4)} x ${stats.height.toFixed(4)}`;
-        els.statDistance.textContent = stats.distance.toFixed(4);
+        els.statDistance.textContent = `${pathStats(outputPoints).distance.toFixed(4)}${statsLabelSuffix}`;
         els.statLines.textContent = String(gcode.trimEnd().split("\n").length);
         els.gcode.value = gcode;
-        els.progressSlider.max = String(Math.max(0, points.length - 1));
+        els.progressSlider.max = String(Math.max(0, outputPoints.length - 1));
         els.progressSlider.value = String(progressIndex);
-        els.progressLabel.textContent = `${progressIndex} / ${Math.max(0, points.length - 1)}`;
-        drawPreview(points, stats, progressIndex);
+        els.progressLabel.textContent = `${progressIndex} / ${Math.max(0, outputPoints.length - 1)}`;
+        drawPreview(outputPoints, stats, progressIndex, previewOverlay);
         updateSpeedBadge(progressIndex);
 
         if (blobUrl) URL.revokeObjectURL(blobUrl);
@@ -1926,6 +2544,21 @@
     Object.entries(inputs).forEach(([id, input]) => {
       if (id === "progressSlider") {
         input.addEventListener("input", () => highlightProgress(Number(input.value)));
+      } else if (id === "calGapRange") {
+        input.addEventListener("input", () => {
+          inputs.calGap.value = input.value;
+          update();
+        });
+      } else if (id === "calGap") {
+        input.addEventListener("input", () => {
+          inputs.calGapRange.value = input.value;
+          update();
+        });
+      } else if (id === "compPreset") {
+        input.addEventListener("input", () => {
+          applyPresetToCompensation(input.value);
+          update();
+        });
       } else {
         input.addEventListener("input", update);
       }
@@ -1943,19 +2576,26 @@
               ? sineFilename
               : inputs.pattern.value === "archimedes"
                 ? archimedesFilename
+                : inputs.pattern.value === "lagCalibration"
+                  ? "MEW_Lag_Calibration.txt"
                 : defaults.filename;
       update();
     });
+
+    els.calSave.addEventListener("click", saveCalibrationPreset);
 
     els.reset.addEventListener("click", () => {
       Object.entries(defaults).forEach(([key, value]) => {
         if (inputs[key].type === "checkbox") inputs[key].checked = value;
         else inputs[key].value = value;
       });
+      populatePresetSelect("");
       syncVisibleControls();
       update();
     });
 
+    lagPresets = loadLagPresets();
+    populatePresetSelect();
     syncVisibleControls();
     update();
   </script>
