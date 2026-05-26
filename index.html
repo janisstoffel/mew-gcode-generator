@@ -645,7 +645,7 @@
 
               <label>
                 Repetitions per line
-                <span>How many times each individual line is retraced before moving to the next track.</span>
+                <span>Back-and-forth passes per series line; loops connect each pass when enabled.</span>
                 <input id="lnLineRepetitions" type="number" min="1" step="1" value="1">
               </label>
 
@@ -681,7 +681,7 @@
 
               <label class="check-label">
                 <input id="lnEndLoop" type="checkbox" checked>
-                End loops between series lines
+                End loops between back-and-forth passes
               </label>
 
               <label>
@@ -1621,7 +1621,8 @@
         currentSide = currentSide === 0 ? 1 : 0;
       }
 
-      const packetSpan = Math.max(0, cfg.seriesLines - 1) * cfg.lineSpacing;
+      const tracksPerLayer = cfg.seriesLines * cfg.lineRepetitions;
+      const packetSpan = Math.max(0, tracksPerLayer - 1) * cfg.lineSpacing;
       const copyPitch = packetSpan + cfg.packetSpacing;
 
       for (let copy = 0; copy < cfg.copies; copy += 1) {
@@ -1629,8 +1630,8 @@
 
         for (let layer = 0; layer < cfg.layers; layer += 1) {
           const forwardLayer = layer % 2 === 0;
-          const trackIndexes = Array.from({ length: cfg.seriesLines }, (_, index) => (
-            forwardLayer ? index : cfg.seriesLines - 1 - index
+          const trackIndexes = Array.from({ length: tracksPerLayer }, (_, index) => (
+            forwardLayer ? index : tracksPerLayer - 1 - index
           ));
           const firstY = copyBaseY + trackIndexes[0] * cfg.lineSpacing;
           const startSide = Math.abs(currentX) <= Math.abs(currentX - cfg.length) ? 0 : 1;
@@ -1641,10 +1642,7 @@
           trackIndexes.forEach((trackIndex, index) => {
             const y = copyBaseY + trackIndex * cfg.lineSpacing;
             moveLocalTo(currentSide === 0 ? 0 : cfg.length, y);
-
-            for (let repetition = 0; repetition < cfg.lineRepetitions; repetition += 1) {
-              drawLinePass();
-            }
+            drawLinePass();
 
             if (index < trackIndexes.length - 1) {
               const nextY = copyBaseY + trackIndexes[index + 1] * cfg.lineSpacing;
@@ -2710,7 +2708,8 @@
         if (!Number.isFinite(cp.circleSegments) || cp.circleSegments < 12) messages.push("Circle segments must be at least 12.");
       } else if (cfg.pattern === "lines") {
         const lines = cfg.lines;
-        const packetSpan = Math.max(0, lines.seriesLines - 1) * lines.lineSpacing;
+        const tracksPerLayer = lines.seriesLines * lines.lineRepetitions;
+        const packetSpan = Math.max(0, tracksPerLayer - 1) * lines.lineSpacing;
         const totalPacketDepth = lines.copies * packetSpan + Math.max(0, lines.copies - 1) * lines.packetSpacing;
         const totalPasses = lines.lineRepetitions * lines.seriesLines * lines.copies * lines.layers;
 
