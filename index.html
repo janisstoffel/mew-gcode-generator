@@ -372,7 +372,7 @@
   <main>
     <header>
       <h1>MEW G-code Generator</h1>
-      <p class="subtitle">Generates editable figure-8, scaffold, connected-circle, and sinusoidal toolpaths with live preview, validation, stats, and downloadable G-code.</p>
+      <p class="subtitle">Generates editable figure-8, scaffold, connected-circle, line, and sinusoidal toolpaths with live preview, validation, stats, and downloadable G-code.</p>
     </header>
 
     <div class="layout">
@@ -386,6 +386,7 @@
               <option value="scaffold">Square scaffold</option>
               <option value="diagonalScaffold">Diagonal square scaffold</option>
               <option value="circlePath">Connected circles on path</option>
+              <option value="lines">Lines</option>
               <option value="sine">Sinusoidal curves</option>
               <option value="archimedes">Archimedes spiral</option>
               <option value="lagCalibration">Lag calibration</option>
@@ -596,6 +597,103 @@
                 Y shift per layer, mm
                 <span>Vertical offset added after each completed layer.</span>
                 <input id="cpLayerShiftY" type="number" step="0.001" value="0">
+              </label>
+            </div>
+          </div>
+
+          <div class="pattern-fields" data-pattern-fields="lines" hidden>
+            <div class="control-grid">
+              <div class="section-title">Working Area</div>
+              <label>
+                Total area width, mm
+                <span>Used by the X position slider.</span>
+                <input id="lnTotalWidth" type="number" min="1" step="0.1" value="50">
+              </label>
+
+              <label>
+                Total area depth, mm
+                <span>Used by the Y position slider.</span>
+                <input id="lnTotalDepth" type="number" min="1" step="0.1" value="50">
+              </label>
+
+              <label>
+                X position in area, %
+                <span>0 is left, 100 is right after orientation is applied.</span>
+                <input id="lnPositionX" type="range" min="0" max="100" step="1" value="0">
+                <output id="lnPositionXValue">0%</output>
+              </label>
+
+              <label>
+                Y position in area, %
+                <span>0 is bottom, 100 is top after orientation is applied.</span>
+                <input id="lnPositionY" type="range" min="0" max="100" step="1" value="0">
+                <output id="lnPositionYValue">0%</output>
+              </label>
+
+              <div class="section-title">Line Packet</div>
+              <label>
+                Line length, mm
+                <span>Length of each straight line pass.</span>
+                <input id="lnLength" type="number" min="0.1" step="0.1" value="30">
+              </label>
+
+              <label>
+                Orientation, degrees
+                <span>0 is +X. 90 is +Y.</span>
+                <input id="lnOrientation" type="number" step="1" value="0">
+              </label>
+
+              <label>
+                Repetitions per line
+                <span>How many times each individual line is retraced before moving to the next track.</span>
+                <input id="lnLineRepetitions" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label>
+                Lines connected in series
+                <span>Parallel tracks connected into one continuous packet.</span>
+                <input id="lnSeriesLines" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label>
+                Line spacing, mm
+                <span>Distance between connected parallel tracks inside one packet.</span>
+                <input id="lnLineSpacing" type="number" min="0.001" step="0.001" value="0.3">
+              </label>
+
+              <label>
+                Copies
+                <span>Number of repeated line packets.</span>
+                <input id="lnCopies" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label>
+                Packet spacing, mm
+                <span>Perpendicular gap between copied line packets.</span>
+                <input id="lnPacketSpacing" type="number" min="0" step="0.1" value="5">
+              </label>
+
+              <label>
+                Layers
+                <span>Repeated passes over each packet. Direction alternates per layer.</span>
+                <input id="lnLayers" type="number" min="1" step="1" value="1">
+              </label>
+
+              <label class="check-label">
+                <input id="lnEndLoop" type="checkbox" checked>
+                End loops between series lines
+              </label>
+
+              <label>
+                Loop diameter, mm
+                <span>U-turn loop diameter when end loops are enabled.</span>
+                <input id="lnLoopDiameter" type="number" min="0.001" step="0.001" value="1.5">
+              </label>
+
+              <label>
+                Loop segments
+                <span>Arc segments per U-turn loop.</span>
+                <input id="lnLoopSegments" type="number" min="3" max="200" step="1" value="12">
               </label>
             </div>
           </div>
@@ -990,6 +1088,21 @@
       cpLayers: 1,
       cpLayerShiftX: 0,
       cpLayerShiftY: 0,
+      lnTotalWidth: 50,
+      lnTotalDepth: 50,
+      lnPositionX: 0,
+      lnPositionY: 0,
+      lnLength: 30,
+      lnOrientation: 0,
+      lnLineRepetitions: 1,
+      lnSeriesLines: 1,
+      lnLineSpacing: 0.3,
+      lnCopies: 1,
+      lnPacketSpacing: 5,
+      lnLayers: 1,
+      lnEndLoop: true,
+      lnLoopDiameter: 1.5,
+      lnLoopSegments: 12,
       sinLength: 40,
       sinAmplitude: 3,
       sinCycles: 4,
@@ -1044,6 +1157,7 @@
     const scaffoldFilename = "1Square_3Layers_0.3mmSpacing_30x30mm.gcode";
     const diagonalScaffoldFilename = "1DiagonalSquare_3Layers_0.3mmSpacing_30x30mm.gcode";
     const circlePathFilename = "ConnectedCirclesOnPath.gcode";
+    const linesFilename = "Lines_RelativeXY.gcode";
     const sineFilename = "SinusoidalCurves_RelativeXY.gcode";
     const archimedesFilename = "ArchimedesSpiral_RelativeXY.gcode";
 
@@ -1134,6 +1248,23 @@
           layers: integerValue("cpLayers"),
           layerShiftX: numberValue("cpLayerShiftX"),
           layerShiftY: numberValue("cpLayerShiftY")
+        },
+        lines: {
+          totalWidth: numberValue("lnTotalWidth"),
+          totalDepth: numberValue("lnTotalDepth"),
+          positionX: numberValue("lnPositionX"),
+          positionY: numberValue("lnPositionY"),
+          length: numberValue("lnLength"),
+          orientation: numberValue("lnOrientation"),
+          lineRepetitions: integerValue("lnLineRepetitions"),
+          seriesLines: integerValue("lnSeriesLines"),
+          lineSpacing: numberValue("lnLineSpacing"),
+          copies: integerValue("lnCopies"),
+          packetSpacing: numberValue("lnPacketSpacing"),
+          layers: integerValue("lnLayers"),
+          endLoop: checkedValue("lnEndLoop"),
+          loopDiameter: numberValue("lnLoopDiameter"),
+          loopSegments: integerValue("lnLoopSegments")
         },
         sine: {
           length: numberValue("sinLength"),
@@ -1439,6 +1570,107 @@
       return {
         points: points.length ? points : [[0, 0]],
         repetitions: centerCount * cfg.layers,
+        speedBoundaryPoints: speedBoundaryPoints.filter((pointIndex) => pointIndex > 0 && pointIndex < points.length)
+      };
+    }
+
+    function generateLines(cfg) {
+      const localPoints = [[0, 0]];
+      const speedBoundaryPoints = [];
+      let currentX = 0;
+      let currentY = 0;
+      let currentSide = 0;
+
+      function addLocalMove(dx, dy) {
+        if (Math.abs(dx) < 1e-9 && Math.abs(dy) < 1e-9) return;
+        currentX += dx;
+        currentY += dy;
+        localPoints.push([currentX, currentY]);
+      }
+
+      function moveLocalTo(x, y) {
+        addLocalMove(x - currentX, y - currentY);
+      }
+
+      function addConnector(deltaY) {
+        if (Math.abs(deltaY) < 1e-9) return;
+
+        if (!cfg.endLoop) {
+          addLocalMove(0, deltaY);
+          return;
+        }
+
+        const loopCfg = {
+          spacing: Math.abs(deltaY),
+          loopRadius: cfg.loopDiameter / 2,
+          loopSegments: cfg.loopSegments,
+          loopOvercorrection: 0,
+          loopEllipseDiameter: 0,
+          loopEllipseFocusDistance: 0,
+          loopEllipseStartOffset: 0
+        };
+        const direction = currentSide === 1 ? 1 : -1;
+        const signY = deltaY >= 0 ? 1 : -1;
+        loopMoves(direction, "x", loopCfg).forEach(([dx, dy]) => addLocalMove(dx, dy * signY));
+      }
+
+      function drawLinePass() {
+        const targetX = currentSide === 0 ? cfg.length : 0;
+        speedBoundaryPoints.push(localPoints.length);
+        moveLocalTo(targetX, currentY);
+        currentSide = currentSide === 0 ? 1 : 0;
+      }
+
+      const packetSpan = Math.max(0, cfg.seriesLines - 1) * cfg.lineSpacing;
+      const copyPitch = packetSpan + cfg.packetSpacing;
+
+      for (let copy = 0; copy < cfg.copies; copy += 1) {
+        const copyBaseY = copy * copyPitch;
+
+        for (let layer = 0; layer < cfg.layers; layer += 1) {
+          const forwardLayer = layer % 2 === 0;
+          const trackIndexes = Array.from({ length: cfg.seriesLines }, (_, index) => (
+            forwardLayer ? index : cfg.seriesLines - 1 - index
+          ));
+          const firstY = copyBaseY + trackIndexes[0] * cfg.lineSpacing;
+          const startSide = Math.abs(currentX) <= Math.abs(currentX - cfg.length) ? 0 : 1;
+
+          moveLocalTo(startSide === 0 ? 0 : cfg.length, firstY);
+          currentSide = startSide;
+
+          trackIndexes.forEach((trackIndex, index) => {
+            const y = copyBaseY + trackIndex * cfg.lineSpacing;
+            moveLocalTo(currentSide === 0 ? 0 : cfg.length, y);
+
+            for (let repetition = 0; repetition < cfg.lineRepetitions; repetition += 1) {
+              drawLinePass();
+            }
+
+            if (index < trackIndexes.length - 1) {
+              const nextY = copyBaseY + trackIndexes[index + 1] * cfg.lineSpacing;
+              addConnector(nextY - currentY);
+            }
+          });
+        }
+      }
+
+      const angle = cfg.orientation * Math.PI / 180;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const rotated = localPoints.map(([x, y]) => [
+        x * cos - y * sin,
+        x * sin + y * cos
+      ]);
+      const bounds = pathStats(rotated);
+      const availableX = Math.max(0, cfg.totalWidth - bounds.width);
+      const availableY = Math.max(0, cfg.totalDepth - bounds.height);
+      const offsetX = -bounds.minX + availableX * cfg.positionX / 100;
+      const offsetY = -bounds.minY + availableY * cfg.positionY / 100;
+      const points = rotated.map(([x, y]) => [x + offsetX, y + offsetY]);
+
+      return {
+        points: points.length ? points : [[0, 0]],
+        repetitions: cfg.lineRepetitions * cfg.seriesLines * cfg.copies * cfg.layers,
         speedBoundaryPoints: speedBoundaryPoints.filter((pointIndex) => pointIndex > 0 && pointIndex < points.length)
       };
     }
@@ -2476,6 +2708,31 @@
           if (totalSegments > 200000) messages.push("This would generate too many points; increase center spacing or reduce circle segments.");
         }
         if (!Number.isFinite(cp.circleSegments) || cp.circleSegments < 12) messages.push("Circle segments must be at least 12.");
+      } else if (cfg.pattern === "lines") {
+        const lines = cfg.lines;
+        const packetSpan = Math.max(0, lines.seriesLines - 1) * lines.lineSpacing;
+        const totalPacketDepth = lines.copies * packetSpan + Math.max(0, lines.copies - 1) * lines.packetSpacing;
+        const totalPasses = lines.lineRepetitions * lines.seriesLines * lines.copies * lines.layers;
+
+        if (!Number.isFinite(lines.totalWidth) || lines.totalWidth <= 0) messages.push("Line working area width must be greater than 0.");
+        if (!Number.isFinite(lines.totalDepth) || lines.totalDepth <= 0) messages.push("Line working area depth must be greater than 0.");
+        if (!Number.isFinite(lines.positionX) || lines.positionX < 0 || lines.positionX > 100) messages.push("Line X position must be between 0 and 100%.");
+        if (!Number.isFinite(lines.positionY) || lines.positionY < 0 || lines.positionY > 100) messages.push("Line Y position must be between 0 and 100%.");
+        if (!Number.isFinite(lines.length) || lines.length <= 0) messages.push("Line length must be greater than 0.");
+        if (!Number.isFinite(lines.orientation)) messages.push("Line orientation must be a finite number.");
+        if (!Number.isFinite(lines.lineRepetitions) || lines.lineRepetitions < 1) messages.push("Repetitions per line must be at least 1.");
+        if (!Number.isFinite(lines.seriesLines) || lines.seriesLines < 1) messages.push("Lines connected in series must be at least 1.");
+        if (!Number.isFinite(lines.lineSpacing) || lines.lineSpacing <= 0) messages.push("Line spacing must be greater than 0.");
+        if (!Number.isFinite(lines.copies) || lines.copies < 1) messages.push("Copies must be at least 1.");
+        if (!Number.isFinite(lines.packetSpacing) || lines.packetSpacing < 0) messages.push("Packet spacing cannot be negative.");
+        if (!Number.isFinite(lines.layers) || lines.layers < 1) messages.push("Layers must be at least 1.");
+        if (!Number.isFinite(lines.loopDiameter) || lines.loopDiameter <= 0) messages.push("Loop diameter must be greater than 0.");
+        if (lines.endLoop && lines.lineSpacing > lines.loopDiameter) messages.push("Line spacing cannot exceed loop diameter when end loops are enabled.");
+        if (!Number.isFinite(lines.loopSegments) || lines.loopSegments < 3) messages.push("Loop segments must be at least 3.");
+        if (Number.isFinite(totalPasses) && totalPasses > 200000) messages.push("This would generate too many line passes; reduce repetitions, series lines, copies, or layers.");
+        if (Number.isFinite(totalPacketDepth) && totalPacketDepth > Math.max(lines.totalWidth, lines.totalDepth) * 20) messages.push("Line packet spacing creates an unusually large layout.");
+        if (stats && stats.width > lines.totalWidth + 0.000001) messages.push("Current lines are wider than the working area; reduce length, copies, spacing, or rotate the pattern.");
+        if (stats && stats.height > lines.totalDepth + 0.000001) messages.push("Current lines are deeper than the working area; reduce length, copies, spacing, or rotate the pattern.");
       } else if (cfg.pattern === "sine") {
         const sine = cfg.sine;
         const totalSegments = sine.cycles * sine.samplesPerCycle * sine.repetitions;
@@ -2598,6 +2855,10 @@
         if (angleOutput) angleOutput.textContent = `${cfg.scaffold.lineAngle.toFixed(0)}°`;
         const ellipseStartOffsetOutput = document.querySelector("#scLoopEllipseStartOffsetValue");
         if (ellipseStartOffsetOutput) ellipseStartOffsetOutput.textContent = `${cfg.scaffold.loopEllipseStartOffset.toFixed(0)}%`;
+        const linePositionXOutput = document.querySelector("#lnPositionXValue");
+        if (linePositionXOutput) linePositionXOutput.textContent = `${cfg.lines.positionX.toFixed(0)}%`;
+        const linePositionYOutput = document.querySelector("#lnPositionYValue");
+        if (linePositionYOutput) linePositionYOutput.textContent = `${cfg.lines.positionY.toFixed(0)}%`;
         if (inputs.calGapRange.value !== inputs.calGap.value) inputs.calGapRange.value = inputs.calGap.value;
         const calibration = updateCalibrationReadout();
 
@@ -2632,11 +2893,13 @@
           ? generateFigure8(cfg.fig, cfg.decimals)
           : cfg.pattern === "circlePath"
             ? generateCirclePath(cfg.circlePath)
-            : cfg.pattern === "sine"
-              ? generateSineCurves(cfg.sine)
-              : cfg.pattern === "archimedes"
-                ? generateArchimedesSpiral(cfg.archimedes)
-                : generateScaffold(cfg.scaffold, cfg.decimals);
+            : cfg.pattern === "lines"
+              ? generateLines(cfg.lines)
+              : cfg.pattern === "sine"
+                ? generateSineCurves(cfg.sine)
+                : cfg.pattern === "archimedes"
+                  ? generateArchimedesSpiral(cfg.archimedes)
+                  : generateScaffold(cfg.scaffold, cfg.decimals);
         const { repetitions } = result;
         const points = transformPoints(result.points, cfg.axes);
         if (!points.length || points.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
@@ -2751,13 +3014,15 @@
           ? scaffoldFilename
           : inputs.pattern.value === "circlePath"
             ? circlePathFilename
-            : inputs.pattern.value === "sine"
-              ? sineFilename
-              : inputs.pattern.value === "archimedes"
-                ? archimedesFilename
-                : inputs.pattern.value === "lagCalibration"
-                  ? "MEW_Lag_Calibration.txt"
-                : defaults.filename;
+            : inputs.pattern.value === "lines"
+              ? linesFilename
+              : inputs.pattern.value === "sine"
+                ? sineFilename
+                : inputs.pattern.value === "archimedes"
+                  ? archimedesFilename
+                  : inputs.pattern.value === "lagCalibration"
+                    ? "MEW_Lag_Calibration.txt"
+                  : defaults.filename;
       update();
     });
 
