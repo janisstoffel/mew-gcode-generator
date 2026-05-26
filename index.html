@@ -681,7 +681,7 @@
 
               <label class="check-label">
                 <input id="lnEndLoop" type="checkbox" checked>
-                End loops between back-and-forth passes
+                End loops between passes
               </label>
 
               <label>
@@ -1614,6 +1614,31 @@
         loopMoves(direction, "x", loopCfg).forEach(([dx, dy]) => addLocalMove(dx, dy * signY));
       }
 
+      function addEndpointLoop() {
+        if (!cfg.endLoop) return;
+
+        const radius = cfg.loopDiameter / 2;
+        const direction = currentSide === 1 ? 1 : -1;
+        const centerX = currentX + direction * radius;
+        const centerY = currentY;
+        const startAngle = currentSide === 1 ? Math.PI : 0;
+        const sweep = currentSide === 1 ? 2 * Math.PI : -2 * Math.PI;
+        let prevX = currentX;
+        let prevY = currentY;
+
+        for (let i = 1; i <= cfg.loopSegments; i += 1) {
+          const angle = startAngle + sweep * i / cfg.loopSegments;
+          const px = centerX + radius * Math.cos(angle);
+          const py = centerY + radius * Math.sin(angle);
+          addLocalMove(px - prevX, py - prevY);
+          prevX = px;
+          prevY = py;
+        }
+
+        currentX = Math.abs(currentX) < 1e-9 ? 0 : currentX;
+        currentY = Math.abs(currentY) < 1e-9 ? 0 : currentY;
+      }
+
       function drawLinePass() {
         const targetX = currentSide === 0 ? cfg.length : 0;
         speedBoundaryPoints.push(localPoints.length);
@@ -1621,7 +1646,7 @@
         currentSide = currentSide === 0 ? 1 : 0;
       }
 
-      const tracksPerLayer = cfg.seriesLines * cfg.lineRepetitions;
+      const tracksPerLayer = cfg.seriesLines;
       const packetSpan = Math.max(0, tracksPerLayer - 1) * cfg.lineSpacing;
       const copyPitch = packetSpan + cfg.packetSpacing;
 
@@ -1642,7 +1667,11 @@
           trackIndexes.forEach((trackIndex, index) => {
             const y = copyBaseY + trackIndex * cfg.lineSpacing;
             moveLocalTo(currentSide === 0 ? 0 : cfg.length, y);
-            drawLinePass();
+
+            for (let repetition = 0; repetition < cfg.lineRepetitions; repetition += 1) {
+              drawLinePass();
+              if (repetition < cfg.lineRepetitions - 1) addEndpointLoop();
+            }
 
             if (index < trackIndexes.length - 1) {
               const nextY = copyBaseY + trackIndexes[index + 1] * cfg.lineSpacing;
@@ -2708,7 +2737,7 @@
         if (!Number.isFinite(cp.circleSegments) || cp.circleSegments < 12) messages.push("Circle segments must be at least 12.");
       } else if (cfg.pattern === "lines") {
         const lines = cfg.lines;
-        const tracksPerLayer = lines.seriesLines * lines.lineRepetitions;
+        const tracksPerLayer = lines.seriesLines;
         const packetSpan = Math.max(0, tracksPerLayer - 1) * lines.lineSpacing;
         const totalPacketDepth = lines.copies * packetSpan + Math.max(0, lines.copies - 1) * lines.packetSpacing;
         const totalPasses = lines.lineRepetitions * lines.seriesLines * lines.copies * lines.layers;
@@ -2726,7 +2755,7 @@
         if (!Number.isFinite(lines.packetSpacing) || lines.packetSpacing < 0) messages.push("Packet spacing cannot be negative.");
         if (!Number.isFinite(lines.layers) || lines.layers < 1) messages.push("Layers must be at least 1.");
         if (!Number.isFinite(lines.loopDiameter) || lines.loopDiameter <= 0) messages.push("Loop diameter must be greater than 0.");
-        if (lines.endLoop && lines.lineSpacing > lines.loopDiameter) messages.push("Line spacing cannot exceed loop diameter when end loops are enabled.");
+        if (lines.endLoop && lines.seriesLines > 1 && lines.lineSpacing > lines.loopDiameter) messages.push("Line spacing cannot exceed loop diameter when end loops connect series lines.");
         if (!Number.isFinite(lines.loopSegments) || lines.loopSegments < 3) messages.push("Loop segments must be at least 3.");
         if (Number.isFinite(totalPasses) && totalPasses > 200000) messages.push("This would generate too many line passes; reduce repetitions, series lines, copies, or layers.");
         if (Number.isFinite(totalPacketDepth) && totalPacketDepth > Math.max(lines.totalWidth, lines.totalDepth) * 20) messages.push("Line packet spacing creates an unusually large layout.");
