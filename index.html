@@ -32,7 +32,7 @@
     }
 
     main {
-      width: min(1180px, calc(100vw - 32px));
+      width: min(1540px, calc(100vw - 32px));
       margin: 0 auto;
       padding: 28px 0;
     }
@@ -57,7 +57,7 @@
 
     .layout {
       display: grid;
-      grid-template-columns: 340px minmax(0, 1fr);
+      grid-template-columns: 460px minmax(0, 1fr);
       gap: 18px;
       align-items: start;
     }
@@ -89,6 +89,10 @@
       display: grid;
       gap: 6px;
       font-weight: 650;
+      border: 1px solid rgba(216, 222, 230, 0.9);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fbfcfd;
     }
 
     label span {
@@ -121,9 +125,12 @@
     }
 
     .section-title {
-      margin: 6px 0 -4px;
-      padding-top: 6px;
+      margin: 8px 0 -2px;
+      padding: 10px;
       border-top: 1px solid var(--line);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f1f5f8;
       color: var(--ink);
       font-size: 13px;
       font-weight: 760;
@@ -153,6 +160,19 @@
       width: 18px;
       min-height: 18px;
       margin: 0;
+    }
+
+    @media (min-width: 1100px) {
+      label:not(.check-label) {
+        grid-template-columns: minmax(130px, 0.85fr) minmax(0, 1.15fr);
+        align-items: start;
+      }
+
+      label:not(.check-label) > input,
+      label:not(.check-label) > select,
+      label:not(.check-label) > output {
+        grid-column: 1 / -1;
+      }
     }
 
     .actions {
@@ -477,6 +497,65 @@
                 Minimum gap, mm
                 <span>Spacing between scaffold origins.</span>
                 <input id="scGap" type="number" min="0" step="0.1" value="7">
+              </label>
+
+              <div class="section-title">Frames</div>
+              <label>
+                Frame count
+                <span>Ordered rectangular frames printed before each scaffold.</span>
+                <input id="scFrameCount" type="number" min="0" max="4" step="1" value="0">
+              </label>
+
+              <label>
+                Frame 1 width / depth, mm
+                <span>Centered on the scaffold grid.</span>
+                <input id="scFrame1Width" type="number" min="0.1" step="0.1" value="32">
+                <input id="scFrame1Depth" type="number" min="0.1" step="0.1" value="32">
+              </label>
+
+              <label>
+                Frame 1 order
+                <span>Lower order values print earlier.</span>
+                <input id="scFrame1Order" type="number" min="1" max="4" step="1" value="1">
+              </label>
+
+              <label>
+                Frame 2 width / depth, mm
+                <span>Ignored when frame count is below 2.</span>
+                <input id="scFrame2Width" type="number" min="0.1" step="0.1" value="34">
+                <input id="scFrame2Depth" type="number" min="0.1" step="0.1" value="34">
+              </label>
+
+              <label>
+                Frame 2 order
+                <span>Lower order values print earlier.</span>
+                <input id="scFrame2Order" type="number" min="1" max="4" step="1" value="2">
+              </label>
+
+              <label>
+                Frame 3 width / depth, mm
+                <span>Ignored when frame count is below 3.</span>
+                <input id="scFrame3Width" type="number" min="0.1" step="0.1" value="36">
+                <input id="scFrame3Depth" type="number" min="0.1" step="0.1" value="36">
+              </label>
+
+              <label>
+                Frame 3 order
+                <span>Lower order values print earlier.</span>
+                <input id="scFrame3Order" type="number" min="1" max="4" step="1" value="3">
+              </label>
+
+              <label>
+                Frame 4 width / depth, mm
+                <span>Ignored when frame count is below 4.</span>
+                <input id="scFrame4Width" type="number" min="0.1" step="0.1" value="38">
+                <input id="scFrame4Depth" type="number" min="0.1" step="0.1" value="38">
+              </label>
+
+              <label>
+                Frame 4 order
+                <span>Lower order values print earlier.</span>
+                <input id="scFrame4Order" type="number" min="1" max="4" step="1" value="4">
               </label>
 
               <div class="section-title">Pattern</div>
@@ -1076,6 +1155,19 @@
       scWidth: 30,
       scDepth: 30,
       scGap: 7,
+      scFrameCount: 0,
+      scFrame1Width: 32,
+      scFrame1Depth: 32,
+      scFrame1Order: 1,
+      scFrame2Width: 34,
+      scFrame2Depth: 34,
+      scFrame2Order: 2,
+      scFrame3Width: 36,
+      scFrame3Depth: 36,
+      scFrame3Order: 3,
+      scFrame4Width: 38,
+      scFrame4Depth: 38,
+      scFrame4Order: 4,
       scLayers: 3,
       scSpacing: 0.3,
       scLoopRadius: 1.5,
@@ -1234,6 +1326,13 @@
           width: numberValue("scWidth"),
           depth: numberValue("scDepth"),
           gap: numberValue("scGap"),
+          frameCount: integerValue("scFrameCount"),
+          frames: [1, 2, 3, 4].map((index) => ({
+            index,
+            width: numberValue(`scFrame${index}Width`),
+            depth: numberValue(`scFrame${index}Depth`),
+            order: integerValue(`scFrame${index}Order`)
+          })),
           layers: integerValue("scLayers"),
           spacing: numberValue("scSpacing"),
           loopRadius: numberValue("scLoopRadius"),
@@ -2127,6 +2226,32 @@
         };
       }
 
+      function activeFrames(rect) {
+        const frameCount = Math.max(0, Math.min(4, cfg.frameCount || 0));
+        const centerX = (rect.left + rect.right) / 2;
+        const centerY = (rect.bottom + rect.top) / 2;
+
+        return cfg.frames
+          .slice(0, frameCount)
+          .map((frame, index) => ({
+            ...frame,
+            sourceIndex: index,
+            left: centerX - frame.width / 2,
+            right: centerX + frame.width / 2,
+            bottom: centerY - frame.depth / 2,
+            top: centerY + frame.depth / 2
+          }))
+          .sort((a, b) => a.order - b.order || a.sourceIndex - b.sourceIndex);
+      }
+
+      function drawFrame(frame) {
+        moveAxisAlignedTo(frame.left, frame.bottom);
+        moveTo(frame.right, frame.bottom);
+        moveTo(frame.right, frame.top);
+        moveTo(frame.left, frame.top);
+        moveTo(frame.left, frame.bottom);
+      }
+
       function uniquePoints(pointsList) {
         const result = [];
         pointsList.forEach((point) => {
@@ -2213,6 +2338,7 @@
         const firstY = yPositions[0];
 
         if (index > 0) speedBoundaryPoints.push(points.length);
+        activeFrames(rect).forEach((frame) => drawFrame(frame));
         routeTo(firstX, firstY, rect);
         for (let layer = 0; layer < cfg.layers; layer += 1) {
           if (cfg.diagonal) generateDiagonalLayer(scaffold);
@@ -2822,6 +2948,12 @@
 
         if (sc.width <= 0 || sc.depth <= 0) messages.push("Scaffold width and depth must be positive.");
         if (sc.cols < 1 || sc.rows < 1) messages.push("Rows and columns must be at least 1.");
+        if (!Number.isFinite(sc.frameCount) || sc.frameCount < 0 || sc.frameCount > 4) messages.push("Frame count must be between 0 and 4.");
+        sc.frames.slice(0, Math.max(0, Math.min(4, sc.frameCount || 0))).forEach((frame) => {
+          if (!Number.isFinite(frame.width) || frame.width <= 0) messages.push(`Frame ${frame.index} width must be greater than 0.`);
+          if (!Number.isFinite(frame.depth) || frame.depth <= 0) messages.push(`Frame ${frame.index} depth must be greater than 0.`);
+          if (!Number.isFinite(frame.order) || frame.order < 1 || frame.order > 4) messages.push(`Frame ${frame.index} order must be between 1 and 4.`);
+        });
         if (sc.layers < 1) messages.push("Layers must be at least 1.");
         if (sc.spacing <= 0) messages.push("Line spacing must be positive.");
         if (sc.loopRadius <= 0) messages.push("Loop radius must be positive.");
@@ -2837,6 +2969,8 @@
         if (lineCountY < 2 || lineCountX < 2) messages.push("Scaffold is too small for the selected line spacing.");
         if (totalX > sc.totalWidth) messages.push(`Scaffolds need ${totalX.toFixed(1)} mm width, but total area is ${sc.totalWidth.toFixed(1)} mm.`);
         if (totalY > sc.totalDepth) messages.push(`Scaffolds need ${totalY.toFixed(1)} mm depth, but total area is ${sc.totalDepth.toFixed(1)} mm.`);
+        if (stats && stats.width > sc.totalWidth + 0.000001) messages.push(`Generated scaffold path needs ${stats.width.toFixed(1)} mm width, but total area is ${sc.totalWidth.toFixed(1)} mm.`);
+        if (stats && stats.height > sc.totalDepth + 0.000001) messages.push(`Generated scaffold path needs ${stats.height.toFixed(1)} mm depth, but total area is ${sc.totalDepth.toFixed(1)} mm.`);
       }
 
       if (render) {
