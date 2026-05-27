@@ -691,6 +691,12 @@
               </label>
 
               <label>
+                Loop overcorrection, mm
+                <span>Extra arc length after each endpoint loop before returning to the line endpoint.</span>
+                <input id="lnLoopOvercorrection" type="number" min="0" max="10" step="0.1" value="1">
+              </label>
+
+              <label>
                 Loop segments
                 <span>Arc segments per U-turn loop.</span>
                 <input id="lnLoopSegments" type="number" min="3" max="200" step="1" value="12">
@@ -1102,6 +1108,7 @@
       lnLayers: 1,
       lnEndLoop: true,
       lnLoopDiameter: 1.5,
+      lnLoopOvercorrection: 1,
       lnLoopSegments: 12,
       sinLength: 40,
       sinAmplitude: 3,
@@ -1264,6 +1271,7 @@
           layers: integerValue("lnLayers"),
           endLoop: checkedValue("lnEndLoop"),
           loopDiameter: numberValue("lnLoopDiameter"),
+          loopOvercorrection: numberValue("lnLoopOvercorrection"),
           loopSegments: integerValue("lnLoopSegments")
         },
         sine: {
@@ -1633,6 +1641,23 @@
           addLocalMove(px - prevX, py - prevY);
           prevX = px;
           prevY = py;
+        }
+
+        const overcorrection = Math.max(0, cfg.loopOvercorrection || 0);
+        if (overcorrection > 0) {
+          const extraSweep = direction * overcorrection / radius;
+          const extraSegments = Math.min(1000, Math.max(1, Math.ceil(cfg.loopSegments * Math.abs(extraSweep) / (2 * Math.PI))));
+
+          for (let i = 1; i <= extraSegments; i += 1) {
+            const angle = startAngle + sweep + extraSweep * i / extraSegments;
+            const px = centerX + radius * Math.cos(angle);
+            const py = centerY + radius * Math.sin(angle);
+            addLocalMove(px - prevX, py - prevY);
+            prevX = px;
+            prevY = py;
+          }
+
+          addLocalMove(currentSide === 1 ? cfg.length - prevX : -prevX, centerY - prevY);
         }
 
         currentX = Math.abs(currentX) < 1e-9 ? 0 : currentX;
@@ -2755,6 +2780,7 @@
         if (!Number.isFinite(lines.packetSpacing) || lines.packetSpacing < 0) messages.push("Packet spacing cannot be negative.");
         if (!Number.isFinite(lines.layers) || lines.layers < 1) messages.push("Layers must be at least 1.");
         if (!Number.isFinite(lines.loopDiameter) || lines.loopDiameter <= 0) messages.push("Loop diameter must be greater than 0.");
+        if (!Number.isFinite(lines.loopOvercorrection) || lines.loopOvercorrection < 0 || lines.loopOvercorrection > 10) messages.push("Loop overcorrection must be between 0 and 10 mm.");
         if (lines.endLoop && lines.seriesLines > 1 && lines.lineSpacing > lines.loopDiameter) messages.push("Line spacing cannot exceed loop diameter when end loops connect series lines.");
         if (!Number.isFinite(lines.loopSegments) || lines.loopSegments < 3) messages.push("Loop segments must be at least 3.");
         if (Number.isFinite(totalPasses) && totalPasses > 200000) messages.push("This would generate too many line passes; reduce repetitions, series lines, copies, or layers.");
