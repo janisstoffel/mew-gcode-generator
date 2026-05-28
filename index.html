@@ -2313,6 +2313,7 @@
 
       function generateRegularLayer(scaffold) {
         const { xPositions, yPositions, rect } = scaffoldGrid(scaffold);
+        routeTo(xPositions[0], yPositions[0], rect);
         generateHorizontalRows(xPositions, yPositions);
         routeTo(xPositions[0], yPositions[0], rect);
         generateVerticalRows(xPositions, yPositions);
